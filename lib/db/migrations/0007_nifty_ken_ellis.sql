@@ -1,0 +1,1 @@
+ALTER TABLE "plans" ALTER COLUMN "description" SET DATA TYPE varchar(300);
