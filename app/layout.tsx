@@ -7,8 +7,8 @@ import Script from 'next/script'; // Import the Script component
 
 
 export const metadata: Metadata = {
-  title: 'Aurahsell: AI Sales Coach and Management', 
-  description: 'Aurahsell is an intelligent sales platform that provides AI-powered coaching and management tools to enhance your sales team\'s performance.',
+  title: 'Caribbean AI Tutor: AI Tutor for CXC',
+  description: 'Caribbean AI Tutor is an intelligent AI Tutor provides CXC Students with personalized AI-powered live tutoring sessions, flashcard and past paper generation to enhance learning and preperations for all subjects in the CXC examinations.',
 };
 
 export const viewport: Viewport = {
@@ -44,7 +44,7 @@ export default function RootLayout({
           src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
           strategy="afterInteractive"
         />
-         <Script id="meta-pixel" strategy="afterInteractive">
+        <Script id="meta-pixel" strategy="afterInteractive">
           {`
             !function(f,b,e,v,n,t,s)
             {if(f.fbq)return;n=f.fbq=function(){n.callMethod?

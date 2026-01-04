@@ -335,7 +335,7 @@ function Footer() {
           {/* Right Side: Copyright */}
           <div className="text-center md:text-right">
             <p className="text-sm text-gray-500">
-              © {new Date().getFullYear()} AurahSell. All Rights Reserved.
+              © {new Date().getFullYear()} Caribbean AI Tutor. All Rights Reserved.
             </p>
             <p className="text-xs text-gray-600 mt-1">
               BuidMore Build EZ
@@ -423,8 +423,8 @@ export default async function PricingPage() {
             Choose Your <span className="text-orange-500">Advantage</span>
           </h1>
           <p className="mt-6 max-w-3xl mx-auto text-lg text-gray-400 sm:text-xl">
-            Simple, transparent pricing. Select the plan that fits your team's
-            ambition and scale.
+            Simple, transparent pricing. Select the plan that fits your
+            ambition and Future.
           </p>
         </div>
 

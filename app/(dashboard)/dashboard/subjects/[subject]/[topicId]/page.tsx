@@ -1,4 +1,4 @@
-import { getFlashcards, getTopic, getPastPaperQuestions, getAllSubjectResources, getSubjectContextText } from '@/app/(dashboard)/actions';
+import { getFlashcards, getTopic, getPastPaperQuestions, getAllSubjectResources, getSubjectContextText, getBestFlashcardScore } from '@/app/(dashboard)/actions';
 import TopicView from '@/components/topic-view';
 
 // Mock Data
@@ -23,6 +23,7 @@ export default async function TopicPage({ params }: { params: Promise<{ subject:
     let dbFlashcards: any[] = [];
     let dbQuestions: any[] = [];
     let dbTopicName = "Topic";
+    let bestScore: any = null;
 
     // Variables for 'all' mode
     let allFlashcards: any[] = [];
@@ -37,6 +38,7 @@ export default async function TopicPage({ params }: { params: Promise<{ subject:
         if (!isNaN(id)) {
             dbFlashcards = await getFlashcards(id);
             dbQuestions = await getPastPaperQuestions(id);
+            bestScore = await getBestFlashcardScore(id);
             const topic = await getTopic(id);
             if (topic) {
                 dbTopicName = topic.name;
@@ -85,6 +87,7 @@ export default async function TopicPage({ params }: { params: Promise<{ subject:
                 questions={displayQuestions}
                 voicePrompt={voicePrompt}
                 backgroundContext={backgroundContext}
+                initialBestScore={bestScore}
             />
         </main>
     );

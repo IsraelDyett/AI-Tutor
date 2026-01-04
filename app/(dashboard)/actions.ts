@@ -1,14 +1,60 @@
 'use server';
 
 import { db } from '@/lib/db/drizzle';
-import { topics, flashcards, passedPaperQuestions } from '@/lib/db/schema';
-import { eq, and, or, isNull } from 'drizzle-orm';
+import { topics, flashcards, passedPaperQuestions, flashcardTests } from '@/lib/db/schema';
+import { eq, and, or, isNull, desc } from 'drizzle-orm';
 import { getUserWithTeam } from '@/lib/db/queries';
 import { getUser } from '@/lib/db/queries';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getSubjectContext } from '@/lib/ai/context-manager';
 import mammoth from 'mammoth';
+
+// --- Score Tracking Actions ---
+
+export async function saveFlashcardTestResult(data: { topicId: number; score: number; totalQuestions: number }) {
+    const user = await getUser();
+    if (!user) return { error: 'Unauthorized' };
+
+    try {
+        await db.insert(flashcardTests).values({
+            userId: user.id,
+            topicId: data.topicId,
+            score: data.score,
+            totalQuestions: data.totalQuestions,
+        });
+
+        revalidatePath(`/dashboard/subjects`);
+        return { success: true };
+    } catch (error) {
+        console.error('Save Flashcard Test Result Error:', error);
+        return { error: 'Failed to save test result' };
+    }
+}
+
+export async function getBestFlashcardScore(topicId: number) {
+    const user = await getUser();
+    if (!user) return null;
+
+    try {
+        const results = await db
+            .select()
+            .from(flashcardTests)
+            .where(
+                and(
+                    eq(flashcardTests.userId, user.id),
+                    eq(flashcardTests.topicId, topicId)
+                )
+            )
+            .orderBy(desc(flashcardTests.score))
+            .limit(1);
+
+        return results[0] || null;
+    } catch (error) {
+        console.error("Failed to fetch best score:", error);
+        return null;
+    }
+}
 
 // --- Actions for Topics ---
 

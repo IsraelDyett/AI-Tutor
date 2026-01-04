@@ -516,3 +516,27 @@ export const studySessionsRelations = relations(studySessions, ({ one }) => ({
     references: [topics.id],
   }),
 }));
+
+export const flashcardTests = pgTable('flashcard_tests', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  topicId: integer('topic_id')
+    .notNull()
+    .references(() => topics.id, { onDelete: 'cascade' }),
+  score: integer('score').notNull(),
+  totalQuestions: integer('total_questions').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const flashcardTestsRelations = relations(flashcardTests, ({ one }) => ({
+  user: one(users, {
+    fields: [flashcardTests.userId],
+    references: [users.id],
+  }),
+  topic: one(topics, {
+    fields: [flashcardTests.topicId],
+    references: [topics.id],
+  }),
+}));

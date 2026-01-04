@@ -5,11 +5,12 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Brain, FileText, MessageCircle, Mic, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Brain, FileText, MessageCircle, Mic, ArrowLeft, RefreshCw, Trophy } from 'lucide-react';
 import LiveAudioComponent from '@/components/live-simulation-component';
 import FlashcardGenerator from '@/components/flashcard-generator';
 import PastPaperGenerator from '@/components/past-paper-generator';
 import TextTutorChat from '@/components/text-tutor-chat';
+import FlashcardTestModal from '@/components/flashcard-test-modal';
 import { useRouter } from 'next/navigation';
 
 interface Flashcard {
@@ -36,6 +37,7 @@ interface TopicViewProps {
     questions: Question[];
     voicePrompt: string;
     backgroundContext?: string;
+    initialBestScore?: { score: number; totalQuestions: number } | null;
 }
 
 export default function TopicView({
@@ -46,9 +48,12 @@ export default function TopicView({
     flashcards,
     questions,
     voicePrompt,
-    backgroundContext = ""
+    backgroundContext = "",
+    initialBestScore = null
 }: TopicViewProps) {
     const [activeTab, setActiveTab] = useState('flashcards');
+    const [isTestOpen, setIsTestOpen] = useState(false);
+    const [bestScore, setBestScore] = useState(initialBestScore);
     const router = useRouter();
 
     const contextPrompt = useMemo(() => {
@@ -93,14 +98,33 @@ export default function TopicView({
                                 : "Master the building blocks of life."}
                         </p>
                     </div>
-                    {/* Generator Component */}
-                    {!isAllTopics && activeTab === 'flashcards' && (
-                        <FlashcardGenerator
-                            subject={subject}
-                            topicId={topicId}
-                            topicName={topicName}
-                            onSaved={() => router.refresh()}
-                        />
+                    {/* Generator & Test Component */}
+                    {activeTab === 'flashcards' && (
+                        <div className="flex gap-3 items-center">
+                            {flashcards.length > 0 && (
+                                <div className="flex flex-col items-end mr-2">
+                                    {bestScore && (
+                                        <div className="flex items-center gap-1.5 text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 shadow-sm mb-2">
+                                            <Trophy className="h-3.5 w-3.5" /> Best: {bestScore.score}/{bestScore.totalQuestions}
+                                        </div>
+                                    )}
+                                    <Button
+                                        onClick={() => setIsTestOpen(true)}
+                                        className="bg-gray-900 hover:bg-gray-800 text-white shadow-md hover:shadow-lg transition-all px-6 font-bold"
+                                    >
+                                        Test Yourself
+                                    </Button>
+                                </div>
+                            )}
+                            {!isAllTopics && (
+                                <FlashcardGenerator
+                                    subject={subject}
+                                    topicId={topicId}
+                                    topicName={topicName}
+                                    onSaved={() => router.refresh()}
+                                />
+                            )}
+                        </div>
                     )}
                     {!isAllTopics && activeTab === 'pastpapers' && (
                         <PastPaperGenerator
@@ -253,6 +277,20 @@ export default function TopicView({
                     />
                 </TabsContent>
             </Tabs>
+
+            <FlashcardTestModal
+                isOpen={isTestOpen}
+                onClose={() => setIsTestOpen(false)}
+                topicId={topicId === 'all' ? -1 : parseInt(topicId)}
+                topicName={topicName}
+                flashcards={flashcards}
+                onComplete={(score) => {
+                    // Update local best score if current is better
+                    if (!bestScore || score > bestScore.score) {
+                        setBestScore({ score, totalQuestions: flashcards.length });
+                    }
+                }}
+            />
         </div>
     );
 }
