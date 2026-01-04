@@ -3,11 +3,11 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   outputFileTracingExcludes: {
     '*': [
-      './.git/**',
-      './.pnpm-store/**',
-      './node_modules/.pnpm/**',
-      './**/*.mp4',
-      './**/*.map',
+      './.git/**',          // Exclude Git history
+      './.pnpm-store/**',   // Exclude the massive package cache (THE ROOT CAUSE)
+      './**/*.mp4',         // Exclude video files from server functions
+      './**/*.map',         // Exclude source maps to save space
+      // REMOVED: './node_modules/.pnpm/**' - keeping this is required for the app to run!
     ],
   },
   experimental: {
