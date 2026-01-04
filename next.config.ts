@@ -1,10 +1,20 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  outputFileTracingExcludes: {
+    '*': [
+      './.git/**',
+      './.pnpm-store/**',
+      './node_modules/.pnpm/**',
+      './**/*.mp4',
+      './**/*.map',
+    ],
+  },
   experimental: {
     // ppr: true,
     // clientSegmentCache: true,
     // nodeMiddleware: true
+
   },
   typescript: {
     // !! WARN !!
