@@ -358,36 +358,32 @@ export default async function PricingPage() {
   const planFeatures: { [key: string]: string[] } = {
     // Replace 'Your Product Name' with the actual name from your Stripe Dashboard
     'Caribbean AI Tutor Pass Ready': [
-      '35 Audio file uploads per month',
-      'Basic analytics',
-      'Solo active team member',
-      '60 Coaching calls per month',
-      'Community support',
-      'Unlimited Sales Sprints',
+      '30 AI Generated Flashcards per month',
+      '20 AI Generated Past Papers per month',
+      '20 Live AI Tutoring sessions per month',
+      '100 AI Chat Sessions per month',
     ],
     'Caribbean AI Tutor Credit Ready': [
-      '200 Audio file uploads per month',
-      'Advanced analytics',
-      '6 active team members',
-      '400 Coaching calls per month',
-      'Community support',
-      'Unlimited Sales Sprints',
+      '150 AI Generated Flashcards per month',
+      '80 AI Generated Past Papers per month',
+      '80 Live AI Tutoring sessions per month',
+      '200 AI Chat Sessions per month',
     ],
     'Caribbean AI Tutor Distinction Ready': [
-      '400 Audio file uploads per month',
-      'Advanced analytics',
-      '10 active teammembers',
-      '800 Coaching calls per month',
-      'Community support',
-      'Unlimited Sales Sprints',
+      'Unlimited AI Generated Flashcards per month',
+      'Unlimited AI Generated Past Papers per month',
+      '150 Live AI Tutoring sessions per month',
+      'Unlimited AI Chat Sessions per month',
     ],
     // Add other plans as needed
   };
 
-  const allowedPlanNames = ['AurahSell Prospect', 'AurahSell Lead', 'AurahSell Closer'];
+  const allowedPlanNames = [
+    'Caribbean AI Tutor Pass Ready',
+    'Caribbean AI Tutor Credit Ready',
+    'Caribbean AI Tutor Distinction Ready'
+  ];
 
-
-  // Combine product data with price data
   const plans = products
     .map((product) => {
       const productPrice = prices.find((price) => price.productId === product.id);
@@ -396,11 +392,25 @@ export default async function PricingPage() {
         priceId: productPrice?.id,
         unitAmount: productPrice?.unitAmount,
         interval: productPrice?.interval,
-        features: planFeatures[product.name || ''] || [], // Get features based on product name
+        features: planFeatures[product.name || ''] || [],
       };
     })
-    .filter((plan) => plan.priceId && plan.name && allowedPlanNames.includes(plan.name))
+    // MODIFIED FILTER: Log what is being rejected
+    .filter((plan) => {
+      const hasPrice = !!plan.priceId;
+      const isAllowed = plan.name && allowedPlanNames.includes(plan.name);
+
+      if (!isAllowed && plan.name) {
+        console.log(`REJECTED: "${plan.name}" (Not in allowed list)`);
+      }
+      if (!hasPrice) {
+        console.log(`REJECTED: "${plan.name}" (No price found)`);
+      }
+
+      return hasPrice && isAllowed;
+    })
     .sort((a, b) => (a.unitAmount || 0) - (b.unitAmount || 0));
+
 
   return (
     <main className="bg-gray-900 text-gray-100">

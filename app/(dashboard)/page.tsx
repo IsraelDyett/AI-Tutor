@@ -12,7 +12,7 @@ export default function HomePage() {
             Success at CXC <span className="text-orange-500">Made Easy</span>
           </h1>
           <p className="mt-6 max-w-3xl mx-auto text-lg text-gray-400 sm:text-xl">
-            Your personal AI Tutor for CXC subjects. Practice with flashcards, past papers, and having real conversations.
+            Your personal AI Tutor for CXC subjects. Practice with flashcards, past papers, and having real conversations with your AI Tutor.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button size="lg" className="text-lg rounded-full bg-orange-500 hover:bg-orange-600 w-full sm:w-auto" asChild>

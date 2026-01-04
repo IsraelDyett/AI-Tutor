@@ -44,7 +44,7 @@ function UserMenu() {
   if (!user) {
     return (
       <>
-        <Link href="/blog" 
+        <Link href="/blog"
           className="text-sm font-medium text-gray-700 hover:text-gray-900">
           Blog
         </Link>
@@ -65,10 +65,10 @@ function UserMenu() {
 
   return (
     <>
-      <Link href="/blog" 
+      {/* <Link href="/blog" 
             className="text-sm font-medium text-gray-700 hover:text-gray-900">
             Blog
-      </Link>
+      </Link> */}
       <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
         <DropdownMenuTrigger>
           <Avatar className="cursor-pointer size-9">
@@ -134,7 +134,7 @@ export function Header() {
               priority
             />
           </Link>
-          
+
         </div>
         <div className="flex items-center space-x-4">
           {/* A more specific fallback can prevent layout shift */}
