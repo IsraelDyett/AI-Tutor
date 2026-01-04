@@ -357,7 +357,7 @@ export default async function PricingPage() {
   // Manually define features for your plans here, matching by product name
   const planFeatures: { [key: string]: string[] } = {
     // Replace 'Your Product Name' with the actual name from your Stripe Dashboard
-    'AurahSell Lead': [
+    'Caribbean AI Tutor Pass Ready': [
       '35 Audio file uploads per month',
       'Basic analytics',
       'Solo active team member',
@@ -365,7 +365,7 @@ export default async function PricingPage() {
       'Community support',
       'Unlimited Sales Sprints',
     ],
-    'AurahSell Prospect': [
+    'Caribbean AI Tutor Credit Ready': [
       '200 Audio file uploads per month',
       'Advanced analytics',
       '6 active team members',
@@ -373,7 +373,7 @@ export default async function PricingPage() {
       'Community support',
       'Unlimited Sales Sprints',
     ],
-    'AurahSell Closer': [
+    'Caribbean AI Tutor Distinction Ready': [
       '400 Audio file uploads per month',
       'Advanced analytics',
       '10 active teammembers',
