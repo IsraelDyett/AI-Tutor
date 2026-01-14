@@ -1,6 +1,50 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+
+function FlashcardItem({ card, isAllTopics }: { card: Flashcard; isAllTopics: boolean }) {
+    const [isFlipped, setIsFlipped] = useState(false);
+
+    return (
+        <div
+            className="group perspective-1000 h-64 cursor-pointer"
+            onClick={() => setIsFlipped(!isFlipped)}
+        >
+            <div className={`relative w-full h-full transition-all duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
+                {/* Front Face */}
+                <div className="absolute inset-0 w-full h-full [backface-visibility:hidden]">
+                    <Card className="h-full flex flex-col justify-center items-center text-center p-6 hover:shadow-lg transition-shadow border-orange-100 relative">
+                        {isAllTopics && card.topic && (
+                            <span className="absolute top-4 right-4 text-xs font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-full">
+                                {card.topic}
+                            </span>
+                        )}
+                        <div className="flex-1 flex flex-col justify-center items-center overflow-y-auto w-full">
+                            <p className="font-medium text-lg text-gray-800">{card.front}</p>
+                        </div>
+                        <span className="text-xs text-gray-400 mt-4 md:block hidden">Hover or tap to reveal</span>
+                        <span className="text-xs text-gray-400 mt-4 md:hidden block">Tap to reveal</span>
+                    </Card>
+                </div>
+
+                {/* Back Face */}
+                <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [transform:rotateY(180deg)]">
+                    <Card className="h-full flex flex-col justify-center items-center text-center p-6 bg-orange-50 border-orange-200 shadow-md relative">
+                        {isAllTopics && card.topic && (
+                            <span className="absolute top-4 right-4 text-xs font-bold text-orange-600 bg-white px-2 py-1 rounded-full">
+                                {card.topic}
+                            </span>
+                        )}
+                        <div className="flex-1 flex flex-col justify-center items-center overflow-y-auto w-full">
+                            <p className="text-orange-700 font-bold text-lg">{card.back}</p>
+                        </div>
+                    </Card>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -89,7 +133,7 @@ export default function TopicView({
                 <Link href={`/dashboard/subjects/${subject}`} className="text-sm text-gray-500 hover:text-orange-600 mb-2 flex items-center">
                     <ArrowLeft className="h-4 w-4 mr-1" /> Back to {subject}
                 </Link>
-                <div className="flex justify-between items-start">
+                <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                     <div>
                         <h1 className="text-3xl font-extrabold text-gray-900">{topicName}</h1>
                         <p className="text-gray-600">
@@ -100,9 +144,9 @@ export default function TopicView({
                     </div>
                     {/* Generator & Test Component */}
                     {activeTab === 'flashcards' && (
-                        <div className="flex gap-3 items-center">
+                        <div className="flex flex-wrap gap-3 items-center w-full sm:w-auto">
                             {flashcards.length > 0 && (
-                                <div className="flex flex-col items-end mr-2">
+                                <div className="flex flex-col items-start sm:items-end flex-1 sm:flex-none">
                                     {bestScore && (
                                         <div className="flex items-center gap-1.5 text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 shadow-sm mb-2">
                                             <Trophy className="h-3.5 w-3.5" /> Best: {bestScore.score}/{bestScore.totalQuestions}
@@ -110,77 +154,52 @@ export default function TopicView({
                                     )}
                                     <Button
                                         onClick={() => setIsTestOpen(true)}
-                                        className="bg-gray-900 hover:bg-gray-800 text-white shadow-md hover:shadow-lg transition-all px-6 font-bold"
+                                        className="bg-gray-900 hover:bg-gray-800 text-white shadow-md hover:shadow-lg transition-all px-6 font-bold w-full sm:w-auto"
                                     >
                                         Test Yourself
                                     </Button>
                                 </div>
                             )}
                             {!isAllTopics && (
-                                <FlashcardGenerator
-                                    subject={subject}
-                                    topicId={topicId}
-                                    topicName={topicName}
-                                    onSaved={() => router.refresh()}
-                                />
+                                <div className="flex-1 sm:flex-none">
+                                    <FlashcardGenerator
+                                        subject={subject}
+                                        topicId={topicId}
+                                        topicName={topicName}
+                                        onSaved={() => router.refresh()}
+                                    />
+                                </div>
                             )}
                         </div>
                     )}
                     {!isAllTopics && activeTab === 'pastpapers' && (
-                        <PastPaperGenerator
-                            subject={subject}
-                            topicId={topicId}
-                            topicName={topicName}
-                            onSaved={() => router.refresh()}
-                        />
+                        <div className="w-full sm:w-auto">
+                            <PastPaperGenerator
+                                subject={subject}
+                                topicId={topicId}
+                                topicName={topicName}
+                                onSaved={() => router.refresh()}
+                            />
+                        </div>
                     )}
                 </div>
             </div>
 
             <Tabs defaultValue="flashcards" className="w-full" onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-4 lg:w-[500px]">
-                    <TabsTrigger value="flashcards">Flashcards</TabsTrigger>
-                    <TabsTrigger value="pastpapers">Past Papers</TabsTrigger>
-                    <TabsTrigger value="voice">Voice Tutor</TabsTrigger>
-                    <TabsTrigger value="text">Text Tutor</TabsTrigger>
-                </TabsList>
+                <div className="overflow-x-auto pb-2 -mx-2 px-2 custom-scrollbar">
+                    <TabsList className="flex w-max min-w-full lg:grid lg:w-[500px] lg:grid-cols-4">
+                        <TabsTrigger value="flashcards" className="flex-1">Flashcards</TabsTrigger>
+                        <TabsTrigger value="pastpapers" className="flex-1">Past Papers</TabsTrigger>
+                        <TabsTrigger value="voice" className="flex-1">Voice Tutor</TabsTrigger>
+                        <TabsTrigger value="text" className="flex-1">Text Tutor</TabsTrigger>
+                    </TabsList>
+                </div>
 
                 {/* Flashcards Tab */}
                 <TabsContent value="flashcards" className="mt-6 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {flashcards.map((card, idx) => (
-                            <div key={card.id || idx} className="group perspective-1000 h-64 cursor-pointer">
-                                <div className="relative w-full h-full transition-all duration-500 [transform-style:preserve-3d] group-hover:[transform:rotateY(180deg)]">
-                                    {/* Front Face */}
-                                    <div className="absolute inset-0 w-full h-full [backface-visibility:hidden]">
-                                        <Card className="h-full flex flex-col justify-center items-center text-center p-6 hover:shadow-lg transition-shadow border-orange-100 relative">
-                                            {isAllTopics && card.topic && (
-                                                <span className="absolute top-4 right-4 text-xs font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-full">
-                                                    {card.topic}
-                                                </span>
-                                            )}
-                                            <div className="flex-1 flex flex-col justify-center items-center overflow-y-auto w-full">
-                                                <p className="font-medium text-lg text-gray-800">{card.front}</p>
-                                            </div>
-                                            <span className="text-xs text-gray-400 mt-4">Hover to reveal</span>
-                                        </Card>
-                                    </div>
-
-                                    {/* Back Face */}
-                                    <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [transform:rotateY(180deg)]">
-                                        <Card className="h-full flex flex-col justify-center items-center text-center p-6 bg-orange-50 border-orange-200 shadow-md relative">
-                                            {isAllTopics && card.topic && (
-                                                <span className="absolute top-4 right-4 text-xs font-bold text-orange-600 bg-white px-2 py-1 rounded-full">
-                                                    {card.topic}
-                                                </span>
-                                            )}
-                                            <div className="flex-1 flex flex-col justify-center items-center overflow-y-auto w-full">
-                                                <p className="text-orange-700 font-bold text-lg">{card.back}</p>
-                                            </div>
-                                        </Card>
-                                    </div>
-                                </div>
-                            </div>
+                            <FlashcardItem key={card.id || idx} card={card} isAllTopics={isAllTopics} />
                         ))}
 
                         {/* Generator Placeholder */}

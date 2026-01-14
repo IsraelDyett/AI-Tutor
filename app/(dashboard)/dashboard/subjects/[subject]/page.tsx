@@ -16,7 +16,7 @@ export default async function SubjectPage({ params }: { params: Promise<{ subjec
             <div className="max-w-6xl mx-auto space-y-8">
 
                 {/* Header */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                         <Link href="/dashboard" className="text-sm text-gray-500 hover:text-orange-600 mb-2 block">
                             &larr; Back to Subjects
@@ -28,13 +28,15 @@ export default async function SubjectPage({ params }: { params: Promise<{ subjec
                             Select a topic to start your study session or choose "All Topics" for a general review.
                         </p>
                     </div>
-                    <div className="flex gap-2">
-                        <Button variant="outline" asChild className="border-orange-500 text-orange-600 hover:bg-orange-50">
+                    <div className="flex flex-wrap gap-2 sm:shrink-0">
+                        <Button variant="outline" asChild className="border-orange-500 text-orange-600 hover:bg-orange-50 flex-1 sm:flex-none">
                             <Link href={`/dashboard/subjects/${subject}/all`}>
                                 <Brain className="mr-2 h-4 w-4" /> All Cards / General Tutor
                             </Link>
                         </Button>
-                        <NewTopicDialog subject={decodedSubject} />
+                        <div className="flex-1 sm:flex-none">
+                            <NewTopicDialog subject={decodedSubject} />
+                        </div>
                     </div>
                 </div>
 
