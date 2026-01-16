@@ -135,7 +135,7 @@ export function Header() {
             />
 
           </Link>
-          <h1 className='text-xl font-bold'>EduCaribbean</h1>
+          <h1 className='text-lg sm:text-xl font-bold truncate'>EduCaribbean</h1>
         </div>
         <div className="flex items-center space-x-4">
           {/* A more specific fallback can prevent layout shift */}
