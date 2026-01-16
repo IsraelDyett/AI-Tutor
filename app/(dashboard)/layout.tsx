@@ -120,21 +120,22 @@ export function Header() {
           <Link href="/" aria-label="Back to homepage">
             <Image
               // Assuming the logo is in the `public/images/` directory
-              src="/image/logo.png"
+              src="/image/Smalllogo.png"
               // Corrected the alt text to accurately describe the image
-              alt="AuraSell Logo"
+              alt="EduCaribbean Logo"
               // --- Start of The Fix ---
               // Adjusted the dimensions to better match the aspect ratio in the screenshot.
               // This makes the logo wider and less tall.
-              width={160}
-              height={40}
+              width={60}
+              height={10}
               // --- End of The Fix ---
               // Remove the `className` as Next.js handles the aspect ratio with width/height
               // Add `priority` to hint Next.js to load this important image faster
               priority
             />
-          </Link>
 
+          </Link>
+          <h1 className='text-xl font-bold'>EduCaribbean</h1>
         </div>
         <div className="flex items-center space-x-4">
           {/* A more specific fallback can prevent layout shift */}
