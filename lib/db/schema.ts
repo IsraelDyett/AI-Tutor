@@ -418,25 +418,26 @@ export enum ActivityType {
 
 // --- Education Platform Tables ---
 
-export const subjectsEnum = pgEnum('subjects', [
-  'English',
-  'Biology',
-  'Spanish',
-  'French',
-  'Chemistry',
-  'Physics',
-  'History',
-  'POA',
-  'POB',
-  'Literature'
-]);
+// --- Education Platform Tables ---
+
+// Note: Education levels and subjects are now managed in the 'subjects' table for dynamic updates.
+
+export const subjects = pgTable('subjects', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  icon: varchar('icon', { length: 50 }), // Emoji or icon name
+  educationLevel: varchar('education_level', { length: 20 }).notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
 
 export const topics = pgTable('topics', {
   id: serial('id').primaryKey(),
   teamId: integer('team_id')
     .references(() => teams.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
-  subject: subjectsEnum('subject').notNull(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  educationLevel: varchar('education_level', { length: 20 }).notNull().default('CSEC'),
   description: text('description'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -477,10 +478,15 @@ export const studySessions = pgTable('study_sessions', {
   summary: text('summary'),
   durationSeconds: integer('duration_seconds'),
   startedAt: timestamp('started_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
   endedAt: timestamp('ended_at'),
 });
 
 // --- Relations for Education Tables ---
+
+export const subjectsRelations = relations(subjects, ({ many }) => ({
+  topics: many(topics),
+}));
 
 export const topicsRelations = relations(topics, ({ one, many }) => ({
   team: one(teams, {

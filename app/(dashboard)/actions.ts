@@ -1,8 +1,8 @@
 'use server';
 
 import { db } from '@/lib/db/drizzle';
-import { topics, flashcards, passedPaperQuestions, flashcardTests } from '@/lib/db/schema';
-import { eq, and, or, isNull, desc } from 'drizzle-orm';
+import { topics, flashcards, passedPaperQuestions, flashcardTests, subjects } from '@/lib/db/schema';
+import { eq, and, or, isNull, desc, sql } from 'drizzle-orm';
 import { getUserWithTeam } from '@/lib/db/queries';
 import { getUser } from '@/lib/db/queries';
 import { revalidatePath } from 'next/cache';
@@ -24,7 +24,7 @@ export async function saveFlashcardTestResult(data: { topicId: number; score: nu
             totalQuestions: data.totalQuestions,
         });
 
-        revalidatePath(`/dashboard/subjects`);
+        revalidatePath(`/dashboard`, 'layout');
         return { success: true };
     } catch (error) {
         console.error('Save Flashcard Test Result Error:', error);
@@ -58,9 +58,9 @@ export async function getBestFlashcardScore(topicId: number) {
 
 // --- Actions for Topics ---
 
-export async function getSubjectContextText(subject: string) {
+export async function getSubjectContextText(subject: string, level: string = 'csec') {
     try {
-        const files = await getSubjectContext(subject);
+        const files = await getSubjectContext(subject, level);
         let extractedText = "";
 
         for (const file of files) {
@@ -107,7 +107,7 @@ export async function getSubjectContextText(subject: string) {
     }
 }
 
-export async function createTopic(subject: string, name: string) {
+export async function createTopic(subject: string, name: string, educationLevel: 'SEA' | 'CSEC' | 'CAPE' = 'CSEC') {
     const user = await getUser();
     if (!user) return { error: 'Unauthorized' };
 
@@ -118,7 +118,8 @@ export async function createTopic(subject: string, name: string) {
         const [newTopic] = await db.insert(topics).values({
             teamId: userWithTeam.teamId,
             name: name,
-            subject: subject as any, // Cast to any to match enum
+            subject: subject,
+            educationLevel: educationLevel,
             description: 'Created via Dashboard',
         }).returning();
 
@@ -131,29 +132,36 @@ export async function createTopic(subject: string, name: string) {
 }
 
 // Re-export getTopics properly
-export async function getTopics(subject: string) {
-    const user = await getUser();
-    if (!user) return [];
-
-    const userWithTeam = await getUserWithTeam(user.id);
-    if (!userWithTeam?.teamId) return [];
-
+export async function getTopics(subject: string, educationLevel?: 'SEA' | 'CSEC' | 'CAPE' | string) {
     try {
-        const teamTopics = await db
-            .select()
-            .from(topics)
-            .where(
-                and(
-                    or(
-                        eq(topics.teamId, userWithTeam.teamId),
-                        isNull(topics.teamId)
-                    ),
-                    eq(topics.subject, subject as any)
-                )
-            );
-        return teamTopics;
+        const allTopics = await db.select().from(topics);
+
+        const filtered = allTopics.filter(t => {
+            const subjectMatch = t.subject?.toLowerCase() === subject?.toLowerCase();
+            const levelMatch = !educationLevel ||
+                !t.educationLevel ||
+                t.educationLevel.toLowerCase() === (educationLevel as string).toLowerCase();
+            return subjectMatch && levelMatch;
+        });
+
+        console.log(`[getTopics] Subject: ${subject}, Level: ${educationLevel}. Processed ${allTopics.length} topics, found ${filtered.length} matches.`);
+        return filtered;
     } catch (error) {
-        console.error("Failed to fetch topics:", error);
+        console.error("[getTopics] Error:", error);
+        return [];
+    }
+}
+
+export async function getSubjectsForLevel(level: 'SEA' | 'CSEC' | 'CAPE' | string) {
+    try {
+        const results = await db
+            .select()
+            .from(subjects)
+            .where(eq(subjects.educationLevel, level))
+            .orderBy(subjects.name);
+        return results;
+    } catch (error) {
+        console.error("Failed to fetch subjects:", error);
         return [];
     }
 }
@@ -232,7 +240,7 @@ export async function savePastPaperQuestion(data: { topicId: number; year: strin
             answerMarkdown: data.answer, // Mapping 'answer' to 'answerMarkdown' based on schema
         });
 
-        revalidatePath(`/dashboard/subjects`);
+        revalidatePath(`/dashboard`, 'layout');
         return { success: true };
     } catch (error) {
         console.error('Save Past Paper Error:', error);
@@ -250,7 +258,7 @@ export async function getPastPaperQuestions(topicId: number) {
     }
 }
 
-export async function getAllSubjectResources(subject: string) {
+export async function getAllSubjectResources(subject: string, educationLevel?: 'SEA' | 'CSEC' | 'CAPE') {
     const user = await getUser();
     if (!user) return { flashcards: [], questions: [] };
 
@@ -268,7 +276,8 @@ export async function getAllSubjectResources(subject: string) {
                         eq(topics.teamId, userWithTeam.teamId),
                         isNull(topics.teamId)
                     ),
-                    eq(topics.subject, subject as any)
+                    eq(topics.subject, subject as any),
+                    educationLevel ? eq(topics.educationLevel, educationLevel) : undefined
                 )
             );
 

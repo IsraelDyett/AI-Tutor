@@ -1,5 +1,5 @@
 import { db } from './drizzle';
-import { topics, flashcards, passedPaperQuestions } from './schema';
+import { topics, flashcards, passedPaperQuestions, subjects } from './schema';
 import { and, isNull, eq } from 'drizzle-orm';
 
 const defaultContent = [
@@ -155,8 +155,51 @@ const defaultContent = [
     }
 ];
 
+const defaultSubjects = [
+    { name: 'Mathematics', icon: '🔢', educationLevel: 'SEA' as const },
+    { name: 'ELA', icon: '📝', educationLevel: 'SEA' as const },
+    { name: 'Creative Writing', icon: '✍️', educationLevel: 'SEA' as const },
+    { name: 'English', icon: '📚', educationLevel: 'CSEC' as const },
+    { name: 'Biology', icon: '🧬', educationLevel: 'CSEC' as const },
+    { name: 'Spanish', icon: '🇪🇸', educationLevel: 'CSEC' as const },
+    { name: 'French', icon: '🇫🇷', educationLevel: 'CSEC' as const },
+    { name: 'Chemistry', icon: '🧪', educationLevel: 'CSEC' as const },
+    { name: 'Physics', icon: '⚛️', educationLevel: 'CSEC' as const },
+    { name: 'History', icon: '📜', educationLevel: 'CSEC' as const },
+    { name: 'POA', icon: '💼', educationLevel: 'CSEC' as const },
+    { name: 'POB', icon: '📊', educationLevel: 'CSEC' as const },
+    { name: 'Literature', icon: '📖', educationLevel: 'CSEC' as const },
+    { name: 'Communication Studies', icon: '🗣️', educationLevel: 'CAPE' as const },
+    { name: 'Pure Mathematics', icon: '📐', educationLevel: 'CAPE' as const },
+    { name: 'Sociology', icon: '👥', educationLevel: 'CAPE' as const },
+    { name: 'Management of Business', icon: '🏢', educationLevel: 'CAPE' as const },
+    { name: 'Digital Media', icon: '💻', educationLevel: 'CAPE' as const },
+];
+
 async function seedDefaults() {
     console.log('Seeding default educational content...');
+
+    // 1. Seed Subjects
+    for (const s of defaultSubjects) {
+        const existing = await db
+            .select()
+            .from(subjects)
+            .where(
+                and(
+                    eq(subjects.name, s.name),
+                    eq(subjects.educationLevel, s.educationLevel)
+                )
+            );
+
+        if (existing.length === 0) {
+            console.log(`  - Creating subject: ${s.name} (${s.educationLevel})`);
+            await db.insert(subjects).values({
+                name: s.name,
+                icon: s.icon,
+                educationLevel: s.educationLevel,
+            });
+        }
+    }
 
     for (const item of defaultContent) {
         console.log(`- Seeding ${item.subject}...`);
@@ -179,6 +222,7 @@ async function seedDefaults() {
             const [newTopic] = await db.insert(topics).values({
                 subject: item.subject as any,
                 name: item.topic,
+                educationLevel: 'CSEC',
                 description: `Default content for ${item.subject}`,
             }).returning();
             topicId = newTopic.id;

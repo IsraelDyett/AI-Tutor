@@ -16,8 +16,9 @@ export default function DashboardLayout({
 
   // Updated Navigation for Education Platform
   const navItems = [
-    { href: '/dashboard', icon: BookOpen, label: 'Subjects' }, // Main Subject Selector
-    // { href: '/dashboard/transcription', icon: FileUp, label: 'Transcription' }, // Keep existing tool
+    { href: '/dashboard/sea', icon: BookOpen, label: 'SEA' },
+    { href: '/dashboard/csec', icon: BookOpen, label: 'CSEC' },
+    { href: '/dashboard/cape', icon: BookOpen, label: 'CAPE' },
     { href: '/dashboard/general', icon: Settings, label: 'Settings' },
   ];
 

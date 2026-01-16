@@ -68,11 +68,13 @@ interface Question {
     id: number;
     year: string;
     question: string;
-    answer: string;
+    answerMarkdown: string;
+    explanationMarkdown?: string;
     topic?: string;
 }
 
 interface TopicViewProps {
+    level: string;
     subject: string;
     topicId: string;
     topicName: string;
@@ -85,6 +87,7 @@ interface TopicViewProps {
 }
 
 export default function TopicView({
+    level,
     subject,
     topicId,
     topicName,
@@ -116,7 +119,7 @@ export default function TopicView({
         if (questions && questions.length > 0) {
             context += `\n--- Past Paper Questions ---\n`;
             questions.forEach((q, i) => {
-                context += `${i + 1}. [Year: ${q.year}] Q: "${q.question}"\n   A: "${q.answer}"\n`;
+                context += `${i + 1}. [Year: ${q.year}] Q: "${q.question}"\n   A: "${q.answerMarkdown}"\n`;
             });
         } else {
             context += `\n(No past paper questions available)\n`;
@@ -130,7 +133,7 @@ export default function TopicView({
 
             {/* Navigation & Header */}
             <div>
-                <Link href={`/dashboard/subjects/${subject}`} className="text-sm text-gray-500 hover:text-orange-600 mb-2 flex items-center">
+                <Link href={`/dashboard/${level}/subjects/${subject}`} className="text-sm text-gray-500 hover:text-orange-600 mb-2 flex items-center">
                     <ArrowLeft className="h-4 w-4 mr-1" /> Back to {subject}
                 </Link>
                 <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
@@ -254,7 +257,7 @@ export default function TopicView({
                                                 <div className="w-full">
                                                     <strong className="block text-green-700 mb-1">Answer:</strong>
                                                     <div className="whitespace-pre-line leading-relaxed text-gray-800">
-                                                        {q.answer}
+                                                        {q.answerMarkdown}
                                                     </div>
                                                 </div>
                                             </div>
@@ -290,6 +293,7 @@ export default function TopicView({
                 {/* Text Tutor Tab */}
                 <TabsContent value="text" className="mt-6">
                     <TextTutorChat
+                        level={level}
                         contextPrompt={contextPrompt}
                         topicName={topicName}
                         subject={subject}

@@ -16,12 +16,13 @@ interface Message {
 }
 
 interface TextTutorChatProps {
+    level: string;
     contextPrompt: string; // The system instructions + flashcards/past paper context
     topicName: string;
     subject: string;
 }
 
-export default function TextTutorChat({ contextPrompt, topicName, subject }: TextTutorChatProps) {
+export default function TextTutorChat({ level, contextPrompt, topicName, subject }: TextTutorChatProps) {
     const [messages, setMessages] = useState<Message[]>([
         { role: 'model', content: `Hello! I'm your AI Tutor for **${topicName}**. How can I help you today? You can ask me questions or upload images/notes for me to analyze.` }
     ]);
@@ -137,7 +138,8 @@ export default function TextTutorChat({ contextPrompt, topicName, subject }: Tex
                 body: JSON.stringify({
                     messages: apiMessages,
                     context: contextPrompt,
-                    subject
+                    subject,
+                    level
                 })
             });
 

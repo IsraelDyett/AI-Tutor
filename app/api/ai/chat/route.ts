@@ -13,7 +13,7 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { messages, context, subject } = body;
+        const { messages, context, subject, level } = body;
         // messages: { role: 'user' | 'model', content: string, files?: [] }[]
         // context: string (the serialized flashcards/questions + system prompt)
 
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
         if (subject) {
             const { getSubjectContext } = require("@/lib/ai/context-manager");
-            const subjectFiles = await getSubjectContext(subject);
+            const subjectFiles = await getSubjectContext(subject, level);
 
             if (subjectFiles.length > 0) {
                 console.log(`Adding ${subjectFiles.length} context files for subject: ${subject}`);
@@ -64,13 +64,23 @@ export async function POST(req: Request) {
         }
 
 
-        const systemInstructions = process.env.TUTOR_SYSTEM_INSTRUCTION;
-        console.log("System Instruction:", systemInstructions);
+        const fs = require('fs');
+        const path = require('path');
+        let levelSpecificInstructions = "";
+        try {
+            const promptPath = path.join(process.cwd(), 'lib', 'ai', 'prompts', `${(level || 'CSEC').toUpperCase()}.txt`);
+            if (fs.existsSync(promptPath)) {
+                levelSpecificInstructions = fs.readFileSync(promptPath, 'utf8');
+            }
+        } catch (err) {
+            console.error("Failed to load level-specific prompt:", err);
+        }
+
         const genAI = new GoogleGenerativeAI(apiKey);
         const modelName = "gemini-2.5-flash";
         const model = genAI.getGenerativeModel({
             model: modelName,
-            systemInstruction: systemInstructions + "\n\n" + context + "\n\n" + backgroundContextText
+            systemInstruction: (levelSpecificInstructions || process.env.TUTOR_SYSTEM_INSTRUCTION) + "\n\n" + context + "\n\n" + backgroundContextText
         });
 
         const previousMessages = messages.slice(0, -1);

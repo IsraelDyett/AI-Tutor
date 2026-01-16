@@ -7,8 +7,8 @@ export interface SubjectContextFile {
     data: string; // base64
 }
 
-export async function getSubjectContext(subject: string): Promise<SubjectContextFile[]> {
-    const contextDir = path.join(process.cwd(), 'lib', 'ai', 'context', subject.toLowerCase());
+export async function getSubjectContext(subject: string, level: string = 'csec'): Promise<SubjectContextFile[]> {
+    const contextDir = path.join(process.cwd(), 'lib', 'ai', 'context', level.toLowerCase(), subject.toLowerCase());
 
     if (!fs.existsSync(contextDir)) {
         console.log(`No context directory found for subject: ${subject}`);

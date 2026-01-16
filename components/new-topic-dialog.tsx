@@ -19,9 +19,10 @@ import { useRouter } from 'next/navigation';
 
 interface NewTopicDialogProps {
     subject: string;
+    educationLevel?: 'SEA' | 'CSEC' | 'CAPE';
 }
 
-export default function NewTopicDialog({ subject }: NewTopicDialogProps) {
+export default function NewTopicDialog({ subject, educationLevel = 'CSEC' }: NewTopicDialogProps) {
     const [open, setOpen] = useState(false);
     const [name, setName] = useState('');
     const [loading, setLoading] = useState(false);
@@ -33,7 +34,7 @@ export default function NewTopicDialog({ subject }: NewTopicDialogProps) {
 
         // Note: Assuming createTopic signature matches (subject, name).
         // If actions.ts was updated differently, this needs to match.
-        const result = await createTopic(subject, name);
+        const result = await createTopic(subject, name, educationLevel);
 
         setLoading(false);
         if (result.success) {
