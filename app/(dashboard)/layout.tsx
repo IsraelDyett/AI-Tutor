@@ -120,7 +120,7 @@ export function Header() {
           <Link href="/" aria-label="Back to homepage">
             <Image
               // Assuming the logo is in the `public/images/` directory
-              src="/image/Smalllogo.png"
+              src="/image/edulogo.png"
               // Corrected the alt text to accurately describe the image
               alt="EduCaribbean Logo"
               // --- Start of The Fix ---
