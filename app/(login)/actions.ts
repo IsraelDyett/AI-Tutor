@@ -15,7 +15,7 @@ import {
   type NewActivityLog,
   ActivityType,
   teamUsage, // <--- Add this import
-  invitations, 
+  invitations,
   plans
 } from '@/lib/db/schema';
 import { sendInvitationEmail } from '@/lib/email';
@@ -28,7 +28,9 @@ import {
   validatedAction,
   validatedActionWithUser
 } from '@/lib/auth/middleware';
-import { revalidatePath } from 'next/cache'; 
+import { revalidatePath } from 'next/cache';
+import crypto from 'crypto';
+import { sendPasswordResetEmail } from '@/lib/email';
 
 
 async function logActivity(
@@ -108,7 +110,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
-  confirmPassword: z.string().min(8), 
+  confirmPassword: z.string().min(8),
   inviteId: z.string().optional()
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -232,7 +234,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     if (!teamForCheckout) {
       return { error: 'Failed to retrieve team information. Please contact support.' };
     }
-    
+
     return createCheckoutSession({ team: teamForCheckout, priceId });
   }
 
@@ -394,7 +396,7 @@ export const removeTeamMember = validatedActionWithUser(
       return { error: 'User is not part of a team' };
     }
 
-        // --- Start of The Fix ---
+    // --- Start of The Fix ---
 
     // Get the member limit from your environment variables
     const maxMembers = parseInt(process.env.MAX_MEMBER_LIMIT || '5');
@@ -424,7 +426,7 @@ export const removeTeamMember = validatedActionWithUser(
           updatedAt: new Date()
         })
         .where(eq(teamUsage.teamId, userWithTeam.teamId)),
-      
+
       // 3. Log the activity (already existed)
       logActivity(
         userWithTeam.teamId,
@@ -432,7 +434,7 @@ export const removeTeamMember = validatedActionWithUser(
         ActivityType.REMOVE_TEAM_MEMBER
       )
     ]);
-    
+
     // --- End of The Fix ---
 
     // The original separate db calls are now inside the Promise.all
@@ -471,7 +473,7 @@ export const inviteTeamMember = validatedActionWithUser(
     const { email, role } = data;
     const userWithTeam = await getUserWithTeam(user.id);
 
-    if (!userWithTeam?.teamId  || !userWithTeam?.team) {
+    if (!userWithTeam?.teamId || !userWithTeam?.team) {
       return { error: 'User is not part of a team' };
     }
 
@@ -479,32 +481,32 @@ export const inviteTeamMember = validatedActionWithUser(
       return { error: 'Team does not have an active plan.' };
     }
 
-        // 1. Get the member limit from the team's plan in the DB
-        const planResult = await db
-        .select({
-          // ASSUMPTION: Your 'plans' table has a 'member_limit' column
-          limit: plans.active_members_limit,
-        })
-        .from(plans)
-        .where(eq(plans.name, userWithTeam.team.planName))
-        .limit(1);
-  
-      if (planResult.length === 0) {
-        return { error: `Invalid plan configured for your team.` };
-      }
-      
-      const maxMembers = planResult[0].limit; // The limit is now dynamic
-  
+    // 1. Get the member limit from the team's plan in the DB
+    const planResult = await db
+      .select({
+        // ASSUMPTION: Your 'plans' table has a 'member_limit' column
+        limit: plans.active_members_limit,
+      })
+      .from(plans)
+      .where(eq(plans.name, userWithTeam.team.planName))
+      .limit(1);
+
+    if (planResult.length === 0) {
+      return { error: `Invalid plan configured for your team.` };
+    }
+
+    const maxMembers = planResult[0].limit; // The limit is now dynamic
+
 
     // 1. Check if the team is already at its member limit
     // const maxMembers = parseInt(process.env.MAX_MEMBER_LIMIT || '5'); // Get limit from .env, with a default
 
     const currentUsage = await db.query.teamUsage.findFirst({
-        where: eq(teamUsage.teamId, userWithTeam.teamId),
-        columns: {
-            activeMembers: true,
-            isMemberLimitReached: true,
-        }
+      where: eq(teamUsage.teamId, userWithTeam.teamId),
+      columns: {
+        activeMembers: true,
+        isMemberLimitReached: true,
+      }
     });
 
     // If usage data exists and the limit is reached, block the invitation.
@@ -551,7 +553,7 @@ export const inviteTeamMember = validatedActionWithUser(
     //   status: 'pending'
     // });
 
-    
+
     // --- Start of The Fix ---
 
     // 2. Create the invitation and get its ID
@@ -567,7 +569,7 @@ export const inviteTeamMember = validatedActionWithUser(
       .returning({ id: invitations.id }); // Get the new invitation ID
 
     if (!newInvitation || !newInvitation.id) {
-        return { error: 'Failed to create the invitation record.' };
+      return { error: 'Failed to create the invitation record.' };
     }
 
     // 3. Construct the unique sign-up URL
@@ -582,10 +584,10 @@ export const inviteTeamMember = validatedActionWithUser(
       // If email fails, the user still has an invitation record, but we should report the error.
       return { error: 'The invitation was created, but we failed to send the email. Please try again later.' };
     }
-    
+
     // --- End of The Fix ---
 
-    
+
 
     await logActivity(
       userWithTeam.teamId,
@@ -599,7 +601,7 @@ export const inviteTeamMember = validatedActionWithUser(
     return { success: 'Invitation sent successfully' };
   });
 
-  
+
 const salesManualSchema = z.object({
   manualText: z.string().max(100000, 'Manual cannot exceed 100,000 characters.'),
 });
@@ -627,7 +629,7 @@ export const saveSalesManual = async (
   ) {
     return { error: 'You must be a team owner to save the sales manual.' };
   }
-  
+
   const teamId = userTeamMembership.teamId;
 
   const validatedFields = salesManualSchema.safeParse({
@@ -643,9 +645,9 @@ export const saveSalesManual = async (
   try {
     await db
       .update(teams)
-      .set({ 
-        salesManual: validatedFields.data.manualText, 
-        updatedAt: new Date() 
+      .set({
+        salesManual: validatedFields.data.manualText,
+        updatedAt: new Date()
       })
       .where(eq(teams.id, teamId));
 
@@ -656,3 +658,85 @@ export const saveSalesManual = async (
     return { error: 'An unexpected error occurred. Please try again.' };
   }
 };
+
+const requestPasswordResetSchema = z.object({
+  email: z.string().email(),
+});
+
+export const requestPasswordReset = validatedAction(
+  requestPasswordResetSchema,
+  async (data) => {
+    const { email } = data;
+
+    const user = await db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+
+    if (!user) {
+      // Return success even if user not found for security
+      return { success: 'If an account with that email exists, we have sent a password reset link.' };
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 3600000); // 1 hour from now
+
+    await db
+      .update(users)
+      .set({
+        resetPasswordToken: token,
+        resetPasswordExpires: expires,
+      })
+      .where(eq(users.id, user.id));
+
+    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+
+    try {
+      await sendPasswordResetEmail(email, resetUrl);
+    } catch (error) {
+      console.error('Error sending reset email:', error);
+      return { error: 'Failed to send password reset email. Please try again later.' };
+    }
+
+    return { success: 'If an account with that email exists, we have sent a password reset link.' };
+  }
+);
+
+const resetPasswordSchema = z.object({
+  token: z.string(),
+  password: z.string().min(8),
+  confirmPassword: z.string().min(8),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+export const resetPassword = validatedAction(
+  resetPasswordSchema,
+  async (data) => {
+    const { token, password } = data;
+
+    const user = await db.query.users.findFirst({
+      where: and(
+        eq(users.resetPasswordToken, token),
+        sql`${users.resetPasswordExpires} > NOW()`
+      ),
+    });
+
+    if (!user) {
+      return { error: 'Password reset token is invalid or has expired.' };
+    }
+
+    const passwordHash = await hashPassword(password);
+
+    await db
+      .update(users)
+      .set({
+        passwordHash,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+      })
+      .where(eq(users.id, user.id));
+
+    return { success: 'Your password has been reset successfully. You can now log in.' };
+  }
+);
