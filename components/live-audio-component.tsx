@@ -74,7 +74,7 @@
 //     scriptProcessorNode.current = null;
 //     sourceNode.current = null;
 //     mediaStream.current = null;
-    
+
 //     updateStatus('Recording stopped. Press record to talk again.');
 //   }, [isRecording]);
 
@@ -82,7 +82,7 @@
 //     if (!client.current) return;
 //     updateStatus('Connecting to Gemini...');
 //     const model = 'gemini-2.5-flash-preview-native-audio-dialog';
-    
+
 //     // Log API key status (without exposing the key)
 //     const apiKey = process.env.NEXT_PUBLIC_API_KEY || '';
 //     console.log('API Key status:', apiKey ? 'Present' : 'Missing');
@@ -90,12 +90,12 @@
 //     console.log('API Key starts with:', apiKey.substring(0, 10) + '...');
 //     console.log('process.env.NEXT_PUBLIC_API_KEY type:', typeof process.env.NEXT_PUBLIC_API_KEY);
 //     console.log('process.env.NEXT_PUBLIC_API_KEY value:', process.env.NEXT_PUBLIC_API_KEY);
-    
+
 //     if (!apiKey) {
 //       updateError('API key not found. Please set NEXT_PUBLIC_API_KEY in your environment variables.');
 //       return;
 //     }
-    
+
 //     try {
 //       session.current = await client.current.live.connect({
 //         model,
@@ -184,14 +184,14 @@
 //       updateError('Session not initialized or not open. Please wait.');
 //       return;
 //     }
-    
+
 //     // Check if API key is available
 //     const apiKey = process.env.NEXT_PUBLIC_API_KEY;
 //     if (!apiKey) {
 //       updateError('API key not found. Please set NEXT_PUBLIC_API_KEY in your environment variables.');
 //       return;
 //     }
-    
+
 //     inputAudioContext.current?.resume();
 //     updateStatus('Requesting microphone...');
 //     try {
@@ -204,12 +204,12 @@
 //         } 
 //       });
 //       updateStatus('Microphone access granted.');
-      
+
 //       if (!inputAudioContext.current) {
 //         updateError('Audio context not initialized');
 //         return;
 //       }
-      
+
 //       sourceNode.current = inputAudioContext.current.createMediaStreamSource(mediaStream.current);
 //       sourceNode.current.connect(inputNode.current!);
 //       scriptProcessorNode.current = inputAudioContext.current.createScriptProcessor(256, 1, 1);
@@ -262,7 +262,7 @@
 
 //     // Init Client
 //     client.current = new GoogleGenAI({apiKey: process.env.NEXT_PUBLIC_API_KEY || ''});
-    
+
 //     // Init 3D Scene
 //     const scene = new THREE.Scene();
 //     scene.background = new THREE.Color(0x100c14);
@@ -295,11 +295,11 @@
 //     });
 //     //renderer.setSize(window.innerWidth, window.innerHeight);
 //     renderer.setPixelRatio(window.devicePixelRatio);
-    
+
 //     const geometry = new THREE.IcosahedronGeometry(1, 10);
 //     const pmremGenerator = new THREE.PMREMGenerator(renderer);
 //     pmremGenerator.compileEquirectangularShader();
-    
+
 //     const sphereMaterial = new THREE.MeshStandardMaterial({
 //         color: 0x000010,
 //         metalness: 0.5,
@@ -326,7 +326,7 @@
 //         sphereMaterial.userData.shader = shader;
 //         shader.vertexShader = sphereVS;
 //     };
-    
+
 //     sphere.current = new THREE.Mesh(geometry, sphereMaterial);
 //     sphere.current.visible = false;
 //     scene.add(sphere.current);
@@ -351,21 +351,21 @@
 //     const onWindowResize = () => {
 //       const parent = renderer.domElement.parentElement;
 //       if (!camera.current || !renderer || !composer.current || !backdrop.current || !parent) return;
-      
+
 //       const w = parent.clientWidth;
 //       const h = parent.clientHeight;
 
 //       camera.current.aspect = w / h;
 //       camera.current.updateProjectionMatrix();
-      
+
 //       const dPR = renderer.getPixelRatio();
 //       (backdrop.current.material as THREE.RawShaderMaterial).uniforms.resolution.value.set(w * dPR, h * dPR);
-      
+
 //       renderer.setSize(w, h);
 //       composer.current.setSize(w, h);
 //   };
 //     window.addEventListener('resize', onWindowResize);
-    
+
 
 //     // --- START OF THE FIX ---
 //     // Use ResizeObserver to reliably get the container's size.
@@ -374,15 +374,15 @@
 //       const { width, height } = entry.contentRect;
 
 //       if (!camera.current || !renderer || !composer.current || !backdrop.current) return;
-      
+
 //       // Update camera
 //       camera.current.aspect = width / height;
 //       camera.current.updateProjectionMatrix();
-      
+
 //       // Update renderer and post-processing composer
 //       renderer.setSize(width, height);
 //       composer.current.setSize(width, height);
-      
+
 //       // Update shader uniforms
 //       const dPR = renderer.getPixelRatio();
 //       (backdrop.current.material as THREE.RawShaderMaterial).uniforms.resolution.value.set(width * dPR, height * dPR);
@@ -400,7 +400,7 @@
 //         animationFrameId.current = requestAnimationFrame(animate);
 
 //         if (!inputAnalyser.current || !outputAnalyser.current || !sphere.current || !backdrop.current || !composer.current || !camera.current) return;
-        
+
 //         inputAnalyser.current.update();
 //         outputAnalyser.current.update();
 
@@ -409,7 +409,7 @@
 //         prevTime.current = t;
 
 //         (backdrop.current.material as THREE.RawShaderMaterial).uniforms.rand.value = Math.random() * 10000;
-        
+
 //         const sphereMaterial = sphere.current.material as THREE.MeshStandardMaterial;
 //         if (sphereMaterial.userData.shader) {
 //             sphere.current.scale.setScalar(1 + (0.2 * outputAnalyser.current.data[1]) / 255);
@@ -450,7 +450,7 @@
 //         isUnmounted.current = true;
 //         if(animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
 //         window.removeEventListener('resize', onWindowResize);
-        
+
 //         // Inline cleanup to avoid dependency on the `stopRecording` callback
 //         scriptProcessorNode.current?.disconnect();
 //         sourceNode.current?.disconnect();
@@ -509,29 +509,34 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {GoogleGenAI, LiveServerMessage, Modality, Session} from '@google/genai';
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {createBlob, decode, decodeAudioData} from '@/lib/utils';
-import {Analyser} from '@/lib/analyser';
+import { GoogleGenAI, LiveServerMessage, Modality, Session } from '@google/genai';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createBlob, decode, decodeAudioData } from '@/lib/utils';
+import { Analyser } from '@/lib/analyser';
 import * as THREE from 'three';
-import {EXRLoader} from 'three/addons/loaders/EXRLoader.js';
-import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
-import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
-import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
-import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
-import {vs as backdropVS, fs as backdropFS} from '@/lib/shaders/backdrop';
-import {vs as sphereVS} from '@/lib/shaders/sphere';
+import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { vs as backdropVS, fs as backdropFS } from '@/lib/shaders/backdrop';
+import { vs as sphereVS } from '@/lib/shaders/sphere';
+import { Settings, Volume2, Check } from 'lucide-react';
 
 interface LiveAudioComponentProps {
   prompt: string;
 }
 
-export default function LiveAudioComponent({prompt}: LiveAudioComponentProps) {
+export default function LiveAudioComponent({ prompt }: LiveAudioComponentProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [status, setStatus] = useState('Initializing...');
   const [error, setError] = useState('');
   // FIX: Added state to track if the session is ready for interaction
   const [isSessionReady, setIsSessionReady] = useState(false);
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [volumeLevel, setVolumeLevel] = useState(0);
 
 
   const client = useRef<GoogleGenAI | null>(null);
@@ -584,14 +589,14 @@ export default function LiveAudioComponent({prompt}: LiveAudioComponentProps) {
     scriptProcessorNode.current = null;
     sourceNode.current = null;
     mediaStream.current = null;
-    
+
     updateStatus('Recording stopped. Press record to talk again.');
   }, []); // FIX: Empty dependency array as it has no external dependencies
 
   // FIX: This entire useEffect block is refactored to handle the Gemini session lifecycle robustly
   useEffect(() => {
     let isCancelled = false;
-    
+
     const initSession = async () => {
       // Ensure client is initialized
       if (!client.current) {
@@ -604,10 +609,10 @@ export default function LiveAudioComponent({prompt}: LiveAudioComponentProps) {
       }
 
       if (!prompt) return;
-      
+
       updateStatus('Connecting to Gemini...');
       setError('');
-      
+
       try {
         const newSession = await client.current.live.connect({
           model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -685,7 +690,7 @@ export default function LiveAudioComponent({prompt}: LiveAudioComponentProps) {
         updateError(`Failed to create session: ${e.message}`);
       }
     };
-    
+
     initSession();
 
     // This is the crucial cleanup function
@@ -700,32 +705,57 @@ export default function LiveAudioComponent({prompt}: LiveAudioComponentProps) {
     };
   }, [prompt, stopRecording]); // Rerun this effect only if the prompt changes
 
+  const enumerateDevices = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const mics = devices.filter(device => device.kind === 'audioinput');
+      setAudioDevices(mics);
+      if (mics.length > 0) {
+        const stillExists = mics.find(m => m.deviceId === selectedDeviceId);
+        if (!stillExists) {
+          setSelectedDeviceId(mics[0].deviceId);
+        }
+      }
+    } catch (err) {
+      console.error('Error enumerating devices:', err);
+    }
+  }, [selectedDeviceId]);
+
+  useEffect(() => {
+    enumerateDevices();
+    navigator.mediaDevices.addEventListener('devicechange', enumerateDevices);
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', enumerateDevices);
+    };
+  }, [enumerateDevices]);
+
   const startRecording = useCallback(async () => {
     if (isRecordingRef.current) return;
     if (!session.current || !isSessionReady) {
       updateError('Session not initialized or not open. Please wait.');
       return;
     }
-    
+
     setError(''); // Clear previous errors
     inputAudioContext.current?.resume();
     updateStatus('Requesting microphone...');
     try {
-      mediaStream.current = await navigator.mediaDevices.getUserMedia({ 
+      mediaStream.current = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 16000
-        } 
+          sampleRate: 16000,
+          deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined
+        }
       });
       updateStatus('Microphone access granted.');
-      
+
       if (!inputAudioContext.current || !inputNode.current) {
         updateError('Audio context not initialized');
         return;
       }
-      
+
       sourceNode.current = inputAudioContext.current.createMediaStreamSource(mediaStream.current);
       sourceNode.current.connect(inputNode.current);
       // Use a larger buffer size for better performance
@@ -733,6 +763,15 @@ export default function LiveAudioComponent({prompt}: LiveAudioComponentProps) {
       scriptProcessorNode.current.onaudioprocess = (event) => {
         if (!isRecordingRef.current || !session.current || !isSessionReady) return;
         const pcmData = event.inputBuffer.getChannelData(0);
+
+        // Calculate volume level for visualization
+        let sum = 0;
+        for (let i = 0; i < pcmData.length; i++) {
+          sum += pcmData[i] * pcmData[i];
+        }
+        const rms = Math.sqrt(sum / pcmData.length);
+        setVolumeLevel(rms * 100); // Simple RMS to volume conversion
+
         session.current?.sendRealtimeInput({ media: createBlob(pcmData) });
       };
       sourceNode.current.connect(scriptProcessorNode.current);
@@ -759,11 +798,11 @@ export default function LiveAudioComponent({prompt}: LiveAudioComponentProps) {
     // --- Init Audio ---
     inputAudioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
     outputAudioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-    
+
     inputNode.current = inputAudioContext.current.createGain();
     outputNode.current = outputAudioContext.current.createGain();
     outputNode.current.connect(outputAudioContext.current.destination);
-    
+
     inputAnalyser.current = new Analyser(inputNode.current);
     outputAnalyser.current = new Analyser(outputNode.current);
 
@@ -772,17 +811,17 @@ export default function LiveAudioComponent({prompt}: LiveAudioComponentProps) {
     scene.background = new THREE.Color(0x100c14);
 
     const back = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(10, 5),
-        new THREE.RawShaderMaterial({
-            uniforms: {
-              resolution: {value: new THREE.Vector2(0,0)},
-              rand: {value: 0},
-            },
-            vertexShader: backdropVS,
-            fragmentShader: backdropFS,
-            glslVersion: THREE.GLSL3,
-            side: THREE.BackSide,
-        }),
+      new THREE.IcosahedronGeometry(10, 5),
+      new THREE.RawShaderMaterial({
+        uniforms: {
+          resolution: { value: new THREE.Vector2(0, 0) },
+          rand: { value: 0 },
+        },
+        vertexShader: backdropVS,
+        fragmentShader: backdropFS,
+        glslVersion: THREE.GLSL3,
+        side: THREE.BackSide,
+      }),
     );
     scene.add(back);
     backdrop.current = back;
@@ -791,41 +830,41 @@ export default function LiveAudioComponent({prompt}: LiveAudioComponentProps) {
     camera.current.position.set(0, 0, 5);
 
     const renderer = new THREE.WebGLRenderer({
-        canvas: canvas,
-        antialias: true,
+      canvas: canvas,
+      antialias: true,
     });
     renderer.setPixelRatio(window.devicePixelRatio);
-    
+
     const geometry = new THREE.IcosahedronGeometry(1, 10);
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     pmremGenerator.compileEquirectangularShader();
-    
+
     const sphereMaterial = new THREE.MeshStandardMaterial({
-        color: 0x000010,
-        metalness: 0.5,
-        roughness: 0.1,
-        emissive: 0x000010,
-        emissiveIntensity: 1.5,
+      color: 0x000010,
+      metalness: 0.5,
+      roughness: 0.1,
+      emissive: 0x000010,
+      emissiveIntensity: 1.5,
     });
 
     new EXRLoader().load('/piz_compressed.exr', (texture) => {
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-        const exrCubeRenderTarget = pmremGenerator.fromEquirectangular(texture);
-        sphereMaterial.envMap = exrCubeRenderTarget.texture;
-        if(sphere.current) sphere.current.visible = true;
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+      const exrCubeRenderTarget = pmremGenerator.fromEquirectangular(texture);
+      sphereMaterial.envMap = exrCubeRenderTarget.texture;
+      if (sphere.current) sphere.current.visible = true;
     }, undefined, (error) => {
-        console.warn('Failed to load EXR texture:', error);
-        if(sphere.current) sphere.current.visible = true;
+      console.warn('Failed to load EXR texture:', error);
+      if (sphere.current) sphere.current.visible = true;
     });
 
     sphereMaterial.onBeforeCompile = (shader) => {
-        shader.uniforms.time = {value: 0};
-        shader.uniforms.inputData = {value: new THREE.Vector4()};
-        shader.uniforms.outputData = {value: new THREE.Vector4()};
-        sphereMaterial.userData.shader = shader;
-        shader.vertexShader = sphereVS;
+      shader.uniforms.time = { value: 0 };
+      shader.uniforms.inputData = { value: new THREE.Vector4() };
+      shader.uniforms.outputData = { value: new THREE.Vector4() };
+      sphereMaterial.userData.shader = shader;
+      shader.vertexShader = sphereVS;
     };
-    
+
     sphere.current = new THREE.Mesh(geometry, sphereMaterial);
     sphere.current.visible = false;
     scene.add(sphere.current);
@@ -839,18 +878,18 @@ export default function LiveAudioComponent({prompt}: LiveAudioComponentProps) {
     const onResize = () => {
       const parent = renderer.domElement.parentElement;
       if (!camera.current || !composer.current || !backdrop.current || !parent) return;
-      
+
       const { clientWidth: w, clientHeight: h } = parent;
       camera.current.aspect = w / h;
       camera.current.updateProjectionMatrix();
-      
+
       const dPR = renderer.getPixelRatio();
       (backdrop.current.material as THREE.RawShaderMaterial).uniforms.resolution.value.set(w * dPR, h * dPR);
-      
+
       renderer.setSize(w, h);
       composer.current.setSize(w, h);
     };
-    
+
     const resizeObserver = new ResizeObserver(onResize);
     if (canvas.parentElement) {
       resizeObserver.observe(canvas.parentElement);
@@ -858,70 +897,70 @@ export default function LiveAudioComponent({prompt}: LiveAudioComponentProps) {
     onResize(); // Initial resize call
 
     const animate = () => {
-        animationFrameId.current = requestAnimationFrame(animate);
+      animationFrameId.current = requestAnimationFrame(animate);
 
-        if (!inputAnalyser.current || !outputAnalyser.current || !sphere.current || !backdrop.current || !composer.current || !camera.current) return;
-        
-        inputAnalyser.current.update();
-        outputAnalyser.current.update();
+      if (!inputAnalyser.current || !outputAnalyser.current || !sphere.current || !backdrop.current || !composer.current || !camera.current) return;
 
-        const t = performance.now();
-        const dt = (t - prevTime.current) / (1000 / 60);
-        prevTime.current = t;
+      inputAnalyser.current.update();
+      outputAnalyser.current.update();
 
-        (backdrop.current.material as THREE.RawShaderMaterial).uniforms.rand.value = Math.random() * 10000;
-        
-        const sphereMaterial = sphere.current.material as THREE.MeshStandardMaterial;
-        if (sphereMaterial.userData.shader) {
-            sphere.current.scale.setScalar(1 + (0.2 * outputAnalyser.current.data[1]) / 255);
+      const t = performance.now();
+      const dt = (t - prevTime.current) / (1000 / 60);
+      prevTime.current = t;
 
-            const f = 0.001;
-            rotation.current.x += (dt * f * 0.5 * outputAnalyser.current.data[1]) / 255;
-            rotation.current.z += (dt * f * 0.5 * inputAnalyser.current.data[1]) / 255;
-            rotation.current.y += (dt * f * 0.25 * (inputAnalyser.current.data[2] + outputAnalyser.current.data[2])) / 255;
+      (backdrop.current.material as THREE.RawShaderMaterial).uniforms.rand.value = Math.random() * 10000;
 
-            camera.current.position.set(0, 0, 5);
+      const sphereMaterial = sphere.current.material as THREE.MeshStandardMaterial;
+      if (sphereMaterial.userData.shader) {
+        sphere.current.scale.setScalar(1 + (0.2 * outputAnalyser.current.data[1]) / 255);
 
-            sphereMaterial.userData.shader.uniforms.time.value += (dt * 0.1 * outputAnalyser.current.data[0]) / 255;
-            sphereMaterial.userData.shader.uniforms.inputData.value.set(
-                (1 * inputAnalyser.current.data[0]) / 255,
-                (0.1 * inputAnalyser.current.data[1]) / 255,
-                (10 * inputAnalyser.current.data[2]) / 255,
-                 0
-            );
-            sphereMaterial.userData.shader.uniforms.outputData.value.set(
-                (2 * outputAnalyser.current.data[0]) / 255,
-                (0.1 * outputAnalyser.current.data[1]) / 255,
-                (10 * outputAnalyser.current.data[2]) / 255,
-                0
-            );
-        }
+        const f = 0.001;
+        rotation.current.x += (dt * f * 0.5 * outputAnalyser.current.data[1]) / 255;
+        rotation.current.z += (dt * f * 0.5 * inputAnalyser.current.data[1]) / 255;
+        rotation.current.y += (dt * f * 0.25 * (inputAnalyser.current.data[2] + outputAnalyser.current.data[2])) / 255;
 
-        composer.current.render();
+        camera.current.position.set(0, 0, 5);
+
+        sphereMaterial.userData.shader.uniforms.time.value += (dt * 0.1 * outputAnalyser.current.data[0]) / 255;
+        sphereMaterial.userData.shader.uniforms.inputData.value.set(
+          (1 * inputAnalyser.current.data[0]) / 255,
+          (0.1 * inputAnalyser.current.data[1]) / 255,
+          (10 * inputAnalyser.current.data[2]) / 255,
+          0
+        );
+        sphereMaterial.userData.shader.uniforms.outputData.value.set(
+          (2 * outputAnalyser.current.data[0]) / 255,
+          (0.1 * outputAnalyser.current.data[1]) / 255,
+          (10 * outputAnalyser.current.data[2]) / 255,
+          0
+        );
+      }
+
+      composer.current.render();
     };
 
     animate();
 
     return () => {
-        if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-        if (canvas.parentElement) resizeObserver.unobserve(canvas.parentElement);
-        
-        stopRecording(); // This is stable now
-        inputAudioContext.current?.close();
-        outputAudioContext.current?.close();
-        pmremGenerator.dispose();
-        renderer.dispose();
+      if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+      if (canvas.parentElement) resizeObserver.unobserve(canvas.parentElement);
+
+      stopRecording(); // This is stable now
+      inputAudioContext.current?.close();
+      outputAudioContext.current?.close();
+      pmremGenerator.dispose();
+      renderer.dispose();
     };
   }, [stopRecording]); // Only depends on the stable stopRecording function
 
   // Main component render
   return (
-    <div style={{width: '100%', height: '100%', position: 'relative'}}>
-      <canvas ref={canvasRef} style={{width: '100%', height: '100%', position: 'absolute', inset: 0}} />
-      <div id="status" style={{position: 'absolute', bottom: '5vh', left: 0, right: 0, zIndex: 10, textAlign: 'center', color: 'white'}}>
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }} />
+      <div id="status" style={{ position: 'absolute', bottom: '5vh', left: 0, right: 0, zIndex: 10, textAlign: 'center', color: 'white' }}>
         {error || status}
       </div>
-      <div className="controls" style={{zIndex: 10, position: 'absolute', bottom: '10vh', left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px'}}>
+      <div className="controls" style={{ zIndex: 10, position: 'absolute', bottom: '10vh', left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px' }}>
         <button id="resetButton" onClick={reset} disabled={isRecording} aria-label="Reset Session" style={{ outline: 'none', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.1)', width: '56px', height: '56px', cursor: 'pointer', fontSize: '24px', padding: 0, margin: 0, display: isRecording ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg xmlns="http://www.w3.org/2000/svg" height="40px" viewBox="0 -960 960 960" width="40px" fill="#ffffff"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z" /></svg>
         </button>
@@ -929,6 +968,99 @@ export default function LiveAudioComponent({prompt}: LiveAudioComponentProps) {
         <button id="startButton" onClick={startRecording} disabled={isRecording || !isSessionReady} aria-label="Start Recording" style={{ outline: 'none', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)', width: '56px', height: '56px', cursor: isSessionReady ? 'pointer' : 'not-allowed', padding: 0, margin: 0, display: isRecording ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', opacity: isSessionReady ? 1 : 0.5 }}>
           <svg viewBox="0 0 100 100" width="32px" height="32px" fill="#c80000" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" /></svg>
         </button>
+
+        {/* Visual Volume Meter and Settings */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '8px' }}>
+          {isRecording && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.5)', padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <Volume2 size={16} color="white" />
+              <div style={{ width: '100px', height: '4px', background: 'rgba(255,255,255,0.2)', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{
+                  width: `${Math.min(100, volumeLevel * 5)}%`,
+                  height: '100%',
+                  background: volumeLevel > 15 ? '#ef4444' : '#22c55e',
+                  transition: 'width 0.1s ease-out, background 0.3s ease'
+                }} />
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            style={{
+              background: showSettings ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: 'white',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Settings size={20} />
+          </button>
+        </div>
+
+        {/* Device Selection Dropdown */}
+        {showSettings && (
+          <div style={{
+            position: 'absolute',
+            bottom: '70px',
+            background: 'rgba(20, 20, 25, 0.95)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '12px',
+            padding: '12px',
+            width: '280px',
+            zIndex: 100,
+            boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
+          }}>
+            <p style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Select Microphone
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {audioDevices.length === 0 ? (
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', padding: '8px' }}>No microphones found</p>
+              ) : (
+                audioDevices.map(device => (
+                  <button
+                    key={device.deviceId}
+                    onClick={() => {
+                      setSelectedDeviceId(device.deviceId);
+                      setShowSettings(false);
+                      if (isRecording) {
+                        reset();
+                      }
+                    }}
+                    style={{
+                      background: selectedDeviceId === device.deviceId ? 'rgba(255,255,255,0.1)' : 'transparent',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      color: 'white',
+                      fontSize: '14px',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'background 0.2s ease'
+                    }}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '8px' }}>
+                      {device.label || `Microphone ${device.deviceId.substring(0, 5)}...`}
+                    </span>
+                    {selectedDeviceId === device.deviceId && <Check size={14} color="#22c55e" />}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
         <button id="stopButton" onClick={stopRecording} disabled={!isRecording} aria-label="Stop Recording" style={{ outline: 'none', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.1)', width: '56px', height: '56px', cursor: 'pointer', padding: 0, margin: 0, display: !isRecording ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg viewBox="0 0 100 100" width="32px" height="32px" fill="#ffffff" xmlns="http://www.w3.org/2000/svg"><rect x="15" y="15" width="70" height="70" rx="8" /></svg>
         </button>

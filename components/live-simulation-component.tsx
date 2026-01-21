@@ -20,6 +20,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { vs as backdropVS, fs as backdropFS } from '@/lib/shaders/backdrop';
 import { vs as sphereVS } from '@/lib/shaders/sphere';
+import { Settings, Volume2, Check } from 'lucide-react';
 
 interface LiveAudioComponentProps {
   prompt: string;
@@ -33,6 +34,10 @@ export default function LiveAudioComponent({ prompt, onConversationEnd, isEnding
   const [error, setError] = useState('');
   const [hasTrackedSession, setHasTrackedSession] = useState(false);
   const [isAllowed, setIsAllowed] = useState(true);
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [volumeLevel, setVolumeLevel] = useState(0);
 
   // Check if session is allowed on mount
   useEffect(() => {
@@ -46,6 +51,35 @@ export default function LiveAudioComponent({ prompt, onConversationEnd, isEnding
     }
     checkLimit();
   }, []);
+
+  const enumerateDevices = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const mics = devices.filter(device => device.kind === 'audioinput');
+      setAudioDevices(mics);
+
+      // If we have mics but none selected, or the selected one is gone, pick the first one
+      if (mics.length > 0) {
+        const stillExists = mics.find(m => m.deviceId === selectedDeviceId);
+        if (!stillExists) {
+          setSelectedDeviceId(mics[0].deviceId);
+        }
+      }
+    } catch (err) {
+      console.error('Error enumerating devices:', err);
+    }
+  }, [selectedDeviceId]);
+
+  useEffect(() => {
+    // Initial enumeration
+    enumerateDevices();
+
+    // Watch for device changes (unplugging/plugging in)
+    navigator.mediaDevices.addEventListener('devicechange', enumerateDevices);
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', enumerateDevices);
+    };
+  }, [enumerateDevices]);
 
   const client = useRef<GoogleGenAI | null>(null);
   const session = useRef<Session | null>(null);
@@ -208,7 +242,13 @@ export default function LiveAudioComponent({ prompt, onConversationEnd, isEnding
     updateStatus('Requesting microphone...');
     try {
       mediaStream.current = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 16000 }
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000,
+          deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined
+        }
       });
       updateStatus('Microphone access granted.');
 
@@ -249,6 +289,22 @@ export default function LiveAudioComponent({ prompt, onConversationEnd, isEnding
       // We still need a source node for sending data to Gemini, separate from the one for recording
       const geminiSourceNode = audioContext.current.createMediaStreamSource(mediaStream.current);
       geminiSourceNode.connect(scriptProcessorNode.current);
+
+      // Create a gain node and analyser for volume level visualization
+      const volumeAnalyserNode = audioContext.current.createAnalyser();
+      volumeAnalyserNode.fftSize = 256;
+      geminiSourceNode.connect(volumeAnalyserNode);
+
+      const dataArray = new Uint8Array(volumeAnalyserNode.frequencyBinCount);
+      const updateVolume = () => {
+        if (!isRecordingRef.current) return;
+        volumeAnalyserNode.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        setVolumeLevel(average);
+        requestAnimationFrame(updateVolume);
+      };
+      updateVolume();
+
       // Connect to the destination to keep the processing chain alive, but with gain 0 to avoid echo.
       const muteNode = audioContext.current.createGain();
       muteNode.gain.setValueAtTime(0, audioContext.current.currentTime);
@@ -431,7 +487,119 @@ export default function LiveAudioComponent({ prompt, onConversationEnd, isEnding
         <button id="startButton" onClick={startConversation} disabled={isRecording} aria-label="Start Recording" style={{ outline: 'none', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)', width: '56px', height: '56px', cursor: 'pointer', padding: 0, margin: 0, display: isRecording ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg viewBox="0 0 100 100" width="32px" height="32px" fill="#c80000" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" /></svg>
         </button>
-        {isRecording && <div style={{ color: 'white', background: 'rgba(0,0,0,0.5)', padding: '4px 8px', borderRadius: '8px' }}>Conversation is being recorded</div>}
+
+        {/* Visual Volume Meter and Settings */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '8px' }}>
+          {isRecording && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.5)', padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <Volume2 size={16} color="white" />
+              <div style={{ width: '100px', height: '4px', background: 'rgba(255,255,255,0.2)', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{
+                  width: `${Math.min(100, volumeLevel * 2)}%`,
+                  height: '100%',
+                  background: volumeLevel > 50 ? '#ef4444' : '#22c55e',
+                  transition: 'width 0.1s ease-out, background 0.3s ease'
+                }} />
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            style={{
+              background: showSettings ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: 'white',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Settings size={20} />
+          </button>
+        </div>
+
+        {/* Device Selection Dropdown */}
+        {showSettings && (
+          <div style={{
+            position: 'absolute',
+            bottom: '70px',
+            background: 'rgba(20, 20, 25, 0.95)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '12px',
+            padding: '12px',
+            width: '280px',
+            zIndex: 100,
+            boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
+          }}>
+            <p style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Select Microphone
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {audioDevices.length === 0 ? (
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', padding: '8px' }}>No microphones found</p>
+              ) : (
+                audioDevices.map(device => (
+                  <button
+                    key={device.deviceId}
+                    onClick={() => {
+                      setSelectedDeviceId(device.deviceId);
+                      setShowSettings(false);
+                      if (isRecording) {
+                        // Restart conversation if device changed while recording
+                        reset();
+                      }
+                    }}
+                    style={{
+                      background: selectedDeviceId === device.deviceId ? 'rgba(255,255,255,0.1)' : 'transparent',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      color: 'white',
+                      fontSize: '14px',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'background 0.2s ease'
+                    }}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '8px' }}>
+                      {device.label || `Microphone ${device.deviceId.substring(0, 5)}...`}
+                    </span>
+                    {selectedDeviceId === device.deviceId && <Check size={14} color="#22c55e" />}
+                  </button>
+                ))
+              )}
+            </div>
+            <button
+              onClick={() => enumerateDevices()}
+              style={{
+                marginTop: '8px',
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '6px',
+                padding: '6px',
+                color: 'white',
+                fontSize: '11px',
+                width: '100%',
+                cursor: 'pointer',
+                opacity: 0.6
+              }}
+            >
+              Refresh Device List
+            </button>
+          </div>
+        )}
+
+        {isRecording && <div style={{ color: 'white', background: 'rgba(0,0,0,0.5)', padding: '4px 8px', borderRadius: '8px', fontSize: '12px', opacity: 0.8 }}>Conversation is being recorded</div>}
       </div>
     </div>
   );
