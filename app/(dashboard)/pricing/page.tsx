@@ -304,7 +304,7 @@ const formatPrice = (priceInCents: number | null | undefined) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-  }).format(priceInCents / 100);
+  }).format(priceInCents / 100) + ' USD';
 };
 
 function Footer() {
