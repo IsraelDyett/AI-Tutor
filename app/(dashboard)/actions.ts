@@ -133,6 +133,14 @@ export async function createTopic(subject: string, name: string, educationLevel:
 
 // Re-export getTopics properly
 export async function getTopics(subject: string, educationLevel?: 'SEA' | 'CSEC' | 'CAPE' | string) {
+    const user = await getUser();
+    let teamId: number | null = null;
+
+    if (user) {
+        const userWithTeam = await getUserWithTeam(user.id);
+        teamId = userWithTeam?.teamId || null;
+    }
+
     try {
         const allTopics = await db.select().from(topics);
 
@@ -141,10 +149,17 @@ export async function getTopics(subject: string, educationLevel?: 'SEA' | 'CSEC'
             const levelMatch = !educationLevel ||
                 !t.educationLevel ||
                 t.educationLevel.toLowerCase() === (educationLevel as string).toLowerCase();
-            return subjectMatch && levelMatch;
+
+            // Privacy Logic:
+            // 1. If it's a system topic (teamId is null), everyone can see it.
+            // 2. If it's a user topic, only members of that team can see it.
+            const isSystemTopic = t.teamId === null;
+            const isUserTopicMatch = teamId !== null && t.teamId === teamId;
+
+            return subjectMatch && levelMatch && (isSystemTopic || isUserTopicMatch);
         });
 
-        console.log(`[getTopics] Subject: ${subject}, Level: ${educationLevel}. Processed ${allTopics.length} topics, found ${filtered.length} matches.`);
+        console.log(`[getTopics] Subject: ${subject}, Level: ${educationLevel}. User: ${user?.id || 'Public'}. Processed ${allTopics.length} topics, found ${filtered.length} matches.`);
         return filtered;
     } catch (error) {
         console.error("[getTopics] Error:", error);
@@ -167,9 +182,28 @@ export async function getSubjectsForLevel(level: 'SEA' | 'CSEC' | 'CAPE' | strin
 }
 
 export async function getTopic(id: number) {
+    const user = await getUser();
+    let teamId: number | null = null;
+
+    if (user) {
+        const userWithTeam = await getUserWithTeam(user.id);
+        teamId = userWithTeam?.teamId || null;
+    }
+
     try {
-        const result = await db.select().from(topics).where(eq(topics.id, id));
-        return result[0];
+        const [topic] = await db.select().from(topics).where(eq(topics.id, id));
+
+        if (!topic) return null;
+
+        // Privacy Logic:
+        const isSystemTopic = topic.teamId === null;
+        const isUserTopicMatch = teamId !== null && topic.teamId === teamId;
+
+        if (isSystemTopic || isUserTopicMatch) {
+            return topic;
+        }
+
+        return null; // Unauthorized access
     } catch (error) {
         console.error("Failed to fetch topic:", error);
         return null;
@@ -208,6 +242,9 @@ export async function saveFlashcard(data: { topicId: number; front: string; back
 }
 
 export async function getFlashcards(topicId: number) {
+    const topic = await getTopic(topicId);
+    if (!topic) return []; // getTopic already handles verification
+
     try {
         const cards = await db.select().from(flashcards).where(eq(flashcards.topicId, topicId));
         return cards;
@@ -249,6 +286,9 @@ export async function savePastPaperQuestion(data: { topicId: number; year: strin
 }
 
 export async function getPastPaperQuestions(topicId: number) {
+    const topic = await getTopic(topicId);
+    if (!topic) return []; // getTopic already handles verification
+
     try {
         const questions = await db.select().from(passedPaperQuestions).where(eq(passedPaperQuestions.topicId, topicId));
         return questions;
@@ -260,21 +300,23 @@ export async function getPastPaperQuestions(topicId: number) {
 
 export async function getAllSubjectResources(subject: string, educationLevel?: 'SEA' | 'CSEC' | 'CAPE') {
     const user = await getUser();
-    if (!user) return { flashcards: [], questions: [] };
+    let teamId: number | null = null;
 
-    const userWithTeam = await getUserWithTeam(user.id);
-    if (!userWithTeam?.teamId) return { flashcards: [], questions: [] };
+    if (user) {
+        const userWithTeam = await getUserWithTeam(user.id);
+        teamId = userWithTeam?.teamId || null;
+    }
 
     try {
-        // 1. Get all topics for this subject and team
+        // 1. Get all topics for this subject that the user has access to
         const teamTopics = await db
             .select()
             .from(topics)
             .where(
                 and(
                     or(
-                        eq(topics.teamId, userWithTeam.teamId),
-                        isNull(topics.teamId)
+                        teamId ? eq(topics.teamId, teamId) : sql`false`, // User's team (if logged in)
+                        isNull(topics.teamId)                          // System content (always accessible)
                     ),
                     eq(topics.subject, subject as any),
                     educationLevel ? eq(topics.educationLevel, educationLevel) : undefined
