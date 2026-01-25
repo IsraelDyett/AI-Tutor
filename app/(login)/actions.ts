@@ -21,7 +21,7 @@ import {
 import { sendInvitationEmail } from '@/lib/email';
 import { comparePasswords, hashPassword, setSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { createCheckoutSession } from '@/lib/payments/stripe';
 import { getUser, getUserWithTeam } from '@/lib/db/queries';
 import {
@@ -101,7 +101,11 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
   const redirectTo = formData.get('redirect') as string | null;
   if (redirectTo === 'checkout') {
     const priceId = formData.get('priceId') as string;
-    return createCheckoutSession({ team: foundTeam, priceId });
+    const headersList = await headers();
+    const host = headersList.get('host');
+    const protocol = headersList.get('x-forwarded-proto') || 'http';
+    const baseUrl = `${protocol}://${host}`;
+    return createCheckoutSession({ team: foundTeam, priceId, baseUrl });
   }
 
   redirect('/dashboard');
@@ -235,7 +239,12 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
       return { error: 'Failed to retrieve team information. Please contact support.' };
     }
 
-    return createCheckoutSession({ team: teamForCheckout, priceId });
+    const headersList = await headers();
+    const host = headersList.get('host');
+    const protocol = headersList.get('x-forwarded-proto') || 'http';
+    const baseUrl = `${protocol}://${host}`;
+
+    return createCheckoutSession({ team: teamForCheckout, priceId, baseUrl });
   }
 
   // --- End of The Fix ---

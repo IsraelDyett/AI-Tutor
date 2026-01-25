@@ -3,8 +3,9 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { 
-  createCheckoutSession, 
+import { headers } from 'next/headers';
+import {
+  createCheckoutSession,
   createCustomerPortalSession,
   stripe // Make sure you export your initialized stripe instance
 } from './stripe';
@@ -15,7 +16,13 @@ import { eq } from 'drizzle-orm'; // Or your ORM's equivalent `where` clause
 
 export const checkoutAction = withTeam(async (formData, team) => {
   const priceId = formData.get('priceId') as string;
-  await createCheckoutSession({ team: team, priceId });
+
+  const headersList = await headers();
+  const host = headersList.get('host');
+  const protocol = headersList.get('x-forwarded-proto') || 'http';
+  const baseUrl = `${protocol}://${host}`;
+
+  await createCheckoutSession({ team: team, priceId, baseUrl });
 });
 
 export const customerPortalAction = withTeam(async (_, team) => {
@@ -25,15 +32,20 @@ export const customerPortalAction = withTeam(async (_, team) => {
     return redirect('/pricing');
   }
 
+  const headersList = await headers();
+  const host = headersList.get('host');
+  const protocol = headersList.get('x-forwarded-proto') || 'http';
+  const baseUrl = `${protocol}://${host}`;
+
   try {
     // 2. Try to create the portal session with the existing ID.
-    const portalSession = await createCustomerPortalSession(team);
+    const portalSession = await createCustomerPortalSession(team, baseUrl);
     redirect(portalSession.url);
   } catch (error) {
     // 3. If it fails, check if it's the specific "resource_missing" error.
     if (error instanceof stripe.errors.StripeInvalidRequestError && error.code === 'resource_missing') {
       console.error(`Invalid Stripe Customer ID: ${team.stripeCustomerId}. It likely exists only in test mode.`);
-      
+
       // SELF-HEALING STEP: The ID is bad, so remove it from your database.
       // This prevents the user from getting stuck in this error loop.
       await db.update(teams).set({ stripeCustomerId: null }).where(eq(teams.id, team.id));
