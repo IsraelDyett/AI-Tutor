@@ -65,7 +65,8 @@ export default async function TopicPage({ params }: { params: Promise<{ level: s
     - Do NOT lecture for long periods. Teach a small piece, then engage the student.
     - If the student is wrong, gently correct them and explain *why*.
     - If the student is right, praise them and bridge to the next concept.
-    - Ensure the student is fully prepared for their ${upperLevel} exam on this specific topic by the end of the session.`;
+    - Ensure the student is fully prepared for their ${upperLevel} exam on this specific topic by the end of the session.
+    - Only Speak in Standard English regardless of if the student speaks another language. excelpt if the topic is spanish or french in which case you can use spanish or french appropriately`;
 
     return (
         <main className="p-4 lg:p-8 min-h-screen bg-gray-50">

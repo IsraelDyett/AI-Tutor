@@ -292,6 +292,7 @@ import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import Image from 'next/image';
 import { getStripePrices, getStripeProducts } from '@/lib/payments/stripe';
 import { checkoutAction } from '@/lib/payments/actions';
+import PaymentInstructionsModal from '@/components/PaymentInstructionsModal';
 
 // Revalidate the data every hour to keep prices fresh
 export const revalidate = 3600;
@@ -415,6 +416,7 @@ export default async function PricingPage() {
   return (
     <main className="bg-gray-900 text-gray-100">
       <section className="relative overflow-hidden pt-32 pb-20 sm:pt-40">
+
         {/* Background grid effect */}
         <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
 
@@ -426,6 +428,10 @@ export default async function PricingPage() {
             Simple, transparent pricing. Select the plan that fits your
             ambition and Future.
           </p>
+        </div>
+
+        <div className="relative z-10 mt-4 flex justify-center pb-4">
+          <PaymentInstructionsModal />
         </div>
 
         {/* This container will now center the pricing plans */}

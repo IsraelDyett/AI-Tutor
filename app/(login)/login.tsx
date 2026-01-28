@@ -113,27 +113,84 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
             )}
           </div>
           {mode === 'signup' && (
-            <div>
-              <Label
-                htmlFor="confirm-password"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Confirm Password
-              </Label>
-              <div className="mt-1">
-                <Input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={8}
-                  maxLength={100}
-                  className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
-                  placeholder="Confirm your password"
-                />
+            <>
+              <div>
+                <Label
+                  htmlFor="phoneNumber"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Phone Number
+                </Label>
+                <div className="mt-1">
+                  <Input
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    type="tel"
+                    autoComplete="tel"
+                    className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
+                    placeholder="Enter your phone number"
+                  />
+                </div>
               </div>
-            </div>
+              <div>
+                <Label
+                  htmlFor="country"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Country
+                </Label>
+                <div className="mt-1">
+                  <select
+                    id="country"
+                    name="country"
+                    className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm bg-white"
+                  >
+                    <option value="">Select your country</option>
+                    <option value="Anguilla">Anguilla</option>
+                    <option value="Antigua and Barbuda">Antigua and Barbuda</option>
+                    <option value="Bahamas">Bahamas</option>
+                    <option value="Barbados">Barbados</option>
+                    <option value="Belize">Belize</option>
+                    <option value="Bermuda">Bermuda</option>
+                    <option value="British Virgin Islands">British Virgin Islands</option>
+                    <option value="Cayman Islands">Cayman Islands</option>
+                    <option value="Dominica">Dominica</option>
+                    <option value="Grenada">Grenada</option>
+                    <option value="Guyana">Guyana</option>
+                    <option value="Jamaica">Jamaica</option>
+                    <option value="Montserrat">Montserrat</option>
+                    <option value="Saint Kitts and Nevis">Saint Kitts and Nevis</option>
+                    <option value="Saint Lucia">Saint Lucia</option>
+                    <option value="Saint Vincent and the Grenadines">Saint Vincent and the Grenadines</option>
+                    <option value="Suriname">Suriname</option>
+                    <option value="Trinidad and Tobago">Trinidad and Tobago</option>
+                    <option value="Turks and Caicos Islands">Turks and Caicos Islands</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <Label
+                  htmlFor="confirm-password"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Confirm Password
+                </Label>
+                <div className="mt-1">
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    minLength={8}
+                    maxLength={100}
+                    className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
+                    placeholder="Confirm your password"
+                  />
+                </div>
+              </div>
+            </>
           )}
 
           {state?.error && (

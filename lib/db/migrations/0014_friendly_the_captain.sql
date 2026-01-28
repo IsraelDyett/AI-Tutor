@@ -1,0 +1,1 @@
+ALTER TABLE "teams" ADD COLUMN "has_used_one_time_voice_trial" boolean DEFAULT false NOT NULL;

@@ -18,6 +18,8 @@ export const users = pgTable('users', {
   email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   role: varchar('role', { length: 20 }).notNull().default('member'),
+  phoneNumber: varchar('phone_number', { length: 20 }),
+  country: varchar('country', { length: 100 }),
   resetPasswordToken: text('reset_password_token'),
   resetPasswordExpires: timestamp('reset_password_expires'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -36,6 +38,7 @@ export const teams = pgTable('teams', {
   planName: varchar('plan_name', { length: 50 }),
   subscriptionStatus: varchar('subscription_status', { length: 20 }),
   salesManual: text('sales_manual'),
+  hasUsedOneTimeVoiceTrial: boolean('has_used_one_time_voice_trial').notNull().default(false),
 });
 
 export const teamMembers = pgTable('team_members', {

@@ -115,6 +115,8 @@ const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   confirmPassword: z.string().min(8),
+  phoneNumber: z.string().max(20).optional(),
+  country: z.string().max(100).optional(),
   inviteId: z.string().optional()
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -196,6 +198,8 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     email,
     passwordHash,
     role: userRole,
+    phoneNumber: data.phoneNumber,
+    country: data.country,
   };
 
   const [createdUser] = await db.insert(users).values(newUser).returning();
@@ -373,17 +377,19 @@ export const deleteAccount = validatedActionWithUser(
 
 const updateAccountSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
-  email: z.string().email('Invalid email address')
+  email: z.string().email('Invalid email address'),
+  phoneNumber: z.string().max(20).optional(),
+  country: z.string().max(100).optional(),
 });
 
 export const updateAccount = validatedActionWithUser(
   updateAccountSchema,
   async (data, _, user) => {
-    const { name, email } = data;
+    const { name, email, phoneNumber, country } = data;
     const userWithTeam = await getUserWithTeam(user.id);
 
     await Promise.all([
-      db.update(users).set({ name, email }).where(eq(users.id, user.id)),
+      db.update(users).set({ name, email, phoneNumber, country }).where(eq(users.id, user.id)),
       logActivity(userWithTeam?.teamId, user.id, ActivityType.UPDATE_ACCOUNT)
     ]);
 

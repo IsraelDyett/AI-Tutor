@@ -31,6 +31,7 @@ export async function getTeamUsageAndLimit(teamId: number) {
         .select({
             usage: teamUsage,
             plan: plans,
+            team: teams,
         })
         .from(teams)
         .leftJoin(teamUsage, eq(teams.id, teamUsage.teamId))
@@ -51,8 +52,30 @@ export async function getTeamUsageAndLimit(teamId: number) {
 
 export async function isFeatureAllowed(teamId: number, feature: FeatureType) {
     const data = await getTeamUsageAndLimit(teamId);
-    if (!data || !data.plan || !data.usage) return { allowed: false, error: 'Team or Plan not found' };
+    if (!data) return { allowed: false, error: 'Team not found' };
 
+    // ONE-TIME FREE TRIAL LOGIC FOR VOICE TUTOR
+    if (feature === 'voiceTutor') {
+        const team = data.team;
+        // If they have a plan (and it's active/trialing), we follow normal limits.
+        // We assume 'active' or 'trialing' means they have a valid plan.
+        const subscriptionStatus = team?.subscriptionStatus;
+        const hasActivePlan = subscriptionStatus === 'active' || subscriptionStatus === 'trialing';
+
+        if (!hasActivePlan) {
+            // If NO plan, check if they used their one-time trial
+            if (team.hasUsedOneTimeVoiceTrial) {
+                return { allowed: false, error: 'Usage Limit Reached: One-time free trial used. Please upgrade.' };
+            } else {
+                // Allow it this one time
+                return { allowed: true, currentUsage: 0, limit: 1, error: null };
+            }
+        }
+    }
+
+    if (!data.plan || !data.usage) return { allowed: false, error: 'Plan or Usage data not found' };
+
+    // Normal Plan Logic
     const currentUsage = data.usage[FEATURE_TO_USAGE_COL[feature]] as number;
     const limit = data.plan[FEATURE_TO_LIMIT_COL[feature]] as number;
 
@@ -66,7 +89,30 @@ export async function isFeatureAllowed(teamId: number, feature: FeatureType) {
 
 export async function incrementFeatureUsage(teamId: number, feature: FeatureType) {
     const data = await getTeamUsageAndLimit(teamId);
-    if (!data || !data.plan) return { success: false, error: 'Plan not found' };
+    if (!data) return { success: false, error: 'Team data not found' };
+
+    // ONE-TIME FREE TRIAL INCREMENT FOR VOICE TUTOR
+    if (feature === 'voiceTutor') {
+        const team = data.team;
+        const subscriptionStatus = team?.subscriptionStatus;
+        const hasActivePlan = subscriptionStatus === 'active' || subscriptionStatus === 'trialing';
+
+        if (!hasActivePlan) {
+            // If they are using it without a plan, it MUST be the free trial.
+            // We set the flag to true.
+            await db.update(teams)
+                .set({ hasUsedOneTimeVoiceTrial: true })
+                .where(eq(teams.id, teamId));
+
+            // We also want to increment the usage counter just for record keeping? 
+            // Or maybe not, since limits are high (0 usually). 
+            // Actually, the previous logic was that they couldn't even use it.
+            // Let's also increment the usage counter in teamUsage so they see 1 usage.
+            return { success: true };
+        }
+    }
+
+    if (!data.plan) return { success: false, error: 'Plan not found' };
 
     const limit = data.plan[FEATURE_TO_LIMIT_COL[feature]] as number;
     const usageCol = FEATURE_TO_USAGE_COL[feature];

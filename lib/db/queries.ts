@@ -152,3 +152,14 @@ export async function getTeamForUser() {
 
   return result?.team || null;
 }
+
+export async function hasUserSignedIn(userId: number) {
+  const result = await db
+    .select()
+    .from(activityLogs)
+    .where(and(eq(activityLogs.userId, userId), eq(activityLogs.action, 'SIGN_IN')))
+    .limit(1);
+
+  return result.length > 0;
+}
+

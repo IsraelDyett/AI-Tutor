@@ -11,6 +11,7 @@ import { User, TeamDataWithMembers } from '@/lib/db/schema';
 import useSWR from 'swr';
 import { Suspense } from 'react';
 import { customerPortalAction } from '@/lib/payments/actions';
+import PaymentInstructionsModal from '@/components/PaymentInstructionsModal';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -24,12 +25,16 @@ type AccountFormProps = {
   state: ActionState;
   nameValue?: string;
   emailValue?: string;
+  phoneNumberValue?: string;
+  countryValue?: string;
 };
 
 function AccountForm({
   state,
   nameValue = '',
-  emailValue = ''
+  emailValue = '',
+  phoneNumberValue = '',
+  countryValue = ''
 }: AccountFormProps) {
   return (
     <>
@@ -58,17 +63,64 @@ function AccountForm({
           required
         />
       </div>
+      <div>
+        <Label htmlFor="phoneNumber" className="mb-2">
+          Phone Number
+        </Label>
+        <Input
+          id="phoneNumber"
+          name="phoneNumber"
+          type="tel"
+          placeholder="Enter your phone number"
+          defaultValue={phoneNumberValue}
+        />
+      </div>
+      <div>
+        <Label htmlFor="country" className="mb-2">
+          Country
+        </Label>
+        <select
+          id="country"
+          name="country"
+          defaultValue={countryValue}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <option value="">Select your country</option>
+          <option value="Anguilla">Anguilla</option>
+          <option value="Antigua and Barbuda">Antigua and Barbuda</option>
+          <option value="Bahamas">Bahamas</option>
+          <option value="Barbados">Barbados</option>
+          <option value="Belize">Belize</option>
+          <option value="Bermuda">Bermuda</option>
+          <option value="British Virgin Islands">British Virgin Islands</option>
+          <option value="Cayman Islands">Cayman Islands</option>
+          <option value="Dominica">Dominica</option>
+          <option value="Grenada">Grenada</option>
+          <option value="Guyana">Guyana</option>
+          <option value="Jamaica">Jamaica</option>
+          <option value="Montserrat">Montserrat</option>
+          <option value="Saint Kitts and Nevis">Saint Kitts and Nevis</option>
+          <option value="Saint Lucia">Saint Lucia</option>
+          <option value="Saint Vincent and the Grenadines">Saint Vincent and the Grenadines</option>
+          <option value="Suriname">Suriname</option>
+          <option value="Trinidad and Tobago">Trinidad and Tobago</option>
+          <option value="Turks and Caicos Islands">Turks and Caicos Islands</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
     </>
   );
 }
 
 function AccountFormWithData({ state }: { state: ActionState }) {
-  const { data: user } = useSWR<User>('/api/user', fetcher);
+  const { data: user } = useSWR<User & { phoneNumber?: string, country?: string }>('/api/user', fetcher);
   return (
     <AccountForm
       state={state}
       nameValue={user?.name ?? ''}
       emailValue={user?.email ?? ''}
+      phoneNumberValue={user?.phoneNumber ?? ''}
+      countryValue={user?.country ?? ''}
     />
   );
 }
@@ -106,11 +158,16 @@ function ManageSubscription() {
                     : 'No active subscription'}
               </p>
             </div>
-            <form action={customerPortalAction}>
-              <Button type="submit" variant="outline" className="border-orange-200 text-orange-600 hover:bg-orange-50">
-                Manage Subscription
-              </Button>
-            </form>
+            <div className="flex gap-2 items-center">
+              <form action={customerPortalAction}>
+                <Button type="submit" variant="outline" className="border-orange-200 text-orange-600 hover:bg-orange-50">
+                  Manage Subscription
+                </Button>
+              </form>
+              <PaymentInstructionsModal
+                className="mt-0 text-sm h-10 px-4 py-2 border-orange-200 hover:bg-orange-50 text-orange-600 scale-100"
+              />
+            </div>
           </div>
         </div>
       </CardContent>

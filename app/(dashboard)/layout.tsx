@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { User, Team } from '@/lib/db/schema';
 import useSWR, { mutate } from 'swr';
 import Image from 'next/image'; // Import the Next.js Image component
+import SubscriptionReminderModal from '@/components/SubscriptionReminderModal';
 
 
 interface UserDetails {
@@ -151,6 +152,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <section className="flex flex-col min-h-screen">
       <Header />
+      <SubscriptionReminderModal />
       {children}
     </section>
   );
