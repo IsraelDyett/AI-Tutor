@@ -14,6 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Plus } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { createTopic } from '@/app/(dashboard)/actions';
 import { useRouter } from 'next/navigation';
 
@@ -25,6 +26,7 @@ interface NewTopicDialogProps {
 export default function NewTopicDialog({ subject, educationLevel = 'CSEC' }: NewTopicDialogProps) {
     const [open, setOpen] = useState(false);
     const [name, setName] = useState('');
+    const [lessonPlan, setLessonPlan] = useState('');
     const [loading, setLoading] = useState(false);
     const router = useRouter();
 
@@ -32,14 +34,13 @@ export default function NewTopicDialog({ subject, educationLevel = 'CSEC' }: New
         if (!name) return;
         setLoading(true);
 
-        // Note: Assuming createTopic signature matches (subject, name).
-        // If actions.ts was updated differently, this needs to match.
-        const result = await createTopic(subject, name, educationLevel);
+        const result = await createTopic(subject, name, educationLevel, lessonPlan);
 
         setLoading(false);
         if (result.success) {
             setOpen(false);
             setName('');
+            setLessonPlan('');
             router.refresh();
         } else {
             alert("Failed to create topic");
@@ -71,6 +72,19 @@ export default function NewTopicDialog({ subject, educationLevel = 'CSEC' }: New
                             onChange={(e) => setName(e.target.value)}
                             className="col-span-3"
                             placeholder="e.g. Cell Biology"
+                        />
+                    </div>
+                    <div className="grid grid-cols-4 items-start gap-4">
+                        <Label htmlFor="lessonPlan" className="text-right pt-2">
+                            Lesson Plan
+                        </Label>
+                        <Textarea
+                            id="lessonPlan"
+                            value={lessonPlan}
+                            onChange={(e) => setLessonPlan(e.target.value)}
+                            className="col-span-3"
+                            placeholder="Optional: Enter a specific lesson plan for this topic..."
+                            rows={4}
                         />
                     </div>
                 </div>

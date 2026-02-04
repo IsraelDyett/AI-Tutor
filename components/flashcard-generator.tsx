@@ -74,6 +74,7 @@ export default function FlashcardGenerator({ subject, topicId, topicName, onSave
                     type: 'flashcards',
                     subject,
                     topic: topicName,
+                    topicId: topicId,
                     count: 5, // Default batch size
                     files: files.map(f => ({
                         name: f.name,

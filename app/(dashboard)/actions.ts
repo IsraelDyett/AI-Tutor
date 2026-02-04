@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db/drizzle';
-import { topics, flashcards, passedPaperQuestions, flashcardTests, subjects } from '@/lib/db/schema';
+import { topics, flashcards, passedPaperQuestions, flashcardTests, subjects, topicResources } from '@/lib/db/schema';
 import { eq, and, or, isNull, desc, sql } from 'drizzle-orm';
 import { getUserWithTeam } from '@/lib/db/queries';
 import { getUser } from '@/lib/db/queries';
@@ -9,6 +9,8 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getSubjectContext } from '@/lib/ai/context-manager';
 import mammoth from 'mammoth';
+import { embedText } from '@/lib/ai/embedding';
+import { chunkText } from '@/lib/ai/chunking';
 
 // --- Score Tracking Actions ---
 
@@ -74,22 +76,9 @@ export async function getSubjectContextText(subject: string, level: string = 'cs
             } else if (file.mimeType === "application/pdf") {
                 try {
                     const buffer = Buffer.from(file.data, "base64");
-                    // Using pdfjs-dist 5.x path for legacy builds (ESM)
-                    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-                    const data = new Uint8Array(buffer);
-                    const loadingTask = pdfjs.getDocument({
-                        data,
-                        useSystemFonts: true,
-                        disableFontFace: true,
-                    });
-                    const pdf = await loadingTask.promise;
-                    let pdfText = "";
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const page = await pdf.getPage(i);
-                        const textContent = await page.getTextContent();
-                        pdfText += textContent.items.map((item: any) => item.str).join(" ") + "\n";
-                    }
-                    if (pdfText.trim()) {
+                    const { extractTextFromPDF } = await import('@/lib/ai/pdf-util');
+                    const pdfText = await extractTextFromPDF(buffer);
+                    if (pdfText && pdfText.trim()) {
                         extractedText += `\n\n--- Content from PDF: ${file.name} ---\n${pdfText}`;
                     } else {
                         extractedText += `\n\n[File Found: ${file.name} (PDF - Extraction empty)]`;
@@ -107,7 +96,9 @@ export async function getSubjectContextText(subject: string, level: string = 'cs
     }
 }
 
-export async function createTopic(subject: string, name: string, educationLevel: 'SEA' | 'CSEC' | 'CAPE' = 'CSEC') {
+const DEFAULT_SYSTEM_INSTRUCTIONS = `You are an expert, encouraging, and highly effective private tutor. Your goal is to help the student master the topic through clear explanations, analogies, and practice questions. Refer to the provided lesson plan and context materials to guide your teaching.`;
+
+export async function createTopic(subject: string, name: string, educationLevel: 'SEA' | 'CSEC' | 'CAPE' = 'CSEC', lessonPlan?: string) {
     const user = await getUser();
     if (!user) return { error: 'Unauthorized' };
 
@@ -121,6 +112,8 @@ export async function createTopic(subject: string, name: string, educationLevel:
             subject: subject,
             educationLevel: educationLevel,
             description: 'Created via Dashboard',
+            lessonPlan: lessonPlan || '',
+            systemInstructions: DEFAULT_SYSTEM_INSTRUCTIONS,
         }).returning();
 
         revalidatePath('/dashboard/subjects/[subject]');
@@ -233,6 +226,20 @@ export async function saveFlashcard(data: { topicId: number; front: string; back
             back: data.back,
         });
 
+        // RAG Ingestion
+        const content = `Flashcard: Front: ${data.front} | Back: ${data.back}`;
+        try {
+            const embedding = await embedText(content);
+            await db.insert(topicResources).values({
+                topicId: data.topicId,
+                content: content,
+                embedding: embedding,
+                type: 'flashcard'
+            });
+        } catch (ragError) {
+            console.error('RAG Ingestion Error (Flashcard):', ragError);
+        }
+
         revalidatePath(`/dashboard/subjects`); // Revalidate liberally for now
         return { success: true };
     } catch (error) {
@@ -276,6 +283,20 @@ export async function savePastPaperQuestion(data: { topicId: number; year: strin
             question: data.question,
             answerMarkdown: data.answer, // Mapping 'answer' to 'answerMarkdown' based on schema
         });
+
+        // RAG Ingestion
+        const content = `Past Paper Question [Year: ${data.year}]: Question: ${data.question} | Answer: ${data.answer}`;
+        try {
+            const embedding = await embedText(content);
+            await db.insert(topicResources).values({
+                topicId: data.topicId,
+                content: content,
+                embedding: embedding,
+                type: 'past_paper'
+            });
+        } catch (ragError) {
+            console.error('RAG Ingestion Error (Past Paper):', ragError);
+        }
 
         revalidatePath(`/dashboard`, 'layout');
         return { success: true };
@@ -367,5 +388,93 @@ export async function getAllSubjectResources(subject: string, educationLevel?: '
     } catch (error) {
         console.error("Failed to fetch all subject resources:", error);
         return { flashcards: [], questions: [] };
+    }
+}
+
+// --- RAG Specific Actions ---
+
+export async function searchResources(query: string, topicId: number | number[]) {
+    const user = await getUser();
+    if (!user) return { error: 'Unauthorized' };
+
+    try {
+        const queryEmbedding = await embedText(query);
+        const queryVector = `[${queryEmbedding.join(',')}]`;
+
+        // Cosine similarity search using pgvector
+        // <=> is cosine distance, so smaller is better. ORDER BY it.
+        const results = await db.execute(sql`
+            SELECT content, (embedding <=> ${queryVector}::vector) as distance
+            FROM topic_resources
+            WHERE topic_id ${Array.isArray(topicId)
+                ? sql`IN (${sql.join(topicId.map(id => sql`${id}`), sql`, `)})`
+                : sql`= ${topicId}`}
+            ORDER BY distance ASC
+            LIMIT 5
+        `);
+
+        return results.map((r: any) => r.content);
+    } catch (error) {
+        console.error('Search Resources Error:', error);
+        return [];
+    }
+}
+
+export async function uploadTopicDocument(topicId: number, name: string, mimeType: string, base64Data: string) {
+    const user = await getUser();
+    if (!user) return { error: 'Unauthorized' };
+
+    try {
+        let extractedText = "";
+        const buffer = Buffer.from(base64Data, 'base64');
+
+        if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+            const result = await mammoth.extractRawText({ buffer });
+            extractedText = result.value;
+        } else if (mimeType === "text/plain") {
+            extractedText = buffer.toString('utf-8');
+        } else if (mimeType === "application/pdf") {
+            const { extractTextFromPDF } = await import('@/lib/ai/pdf-util');
+            extractedText = await extractTextFromPDF(buffer);
+        }
+
+        if (!extractedText) return { error: 'Could not extract text from file' };
+
+        const chunks = chunkText(extractedText);
+
+        for (const chunk of chunks) {
+            const embedding = await embedText(chunk);
+            await db.insert(topicResources).values({
+                topicId: topicId,
+                content: `Document: ${name} | Content: ${chunk}`,
+                embedding: embedding,
+                type: 'document'
+            });
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('Upload Topic Document Error:', error);
+    }
+}
+
+export async function updateTopicContext(topicId: number, data: { systemInstructions?: string; lessonPlan?: string }) {
+    const user = await getUser();
+    if (!user) return { error: 'Unauthorized' };
+
+    try {
+        await db.update(topics)
+            .set({
+                systemInstructions: data.systemInstructions,
+                lessonPlan: data.lessonPlan,
+                updatedAt: new Date()
+            })
+            .where(eq(topics.id, topicId));
+
+        revalidatePath(`/dashboard/subjects`); // Revalidate liberally for now
+        return { success: true };
+    } catch (error) {
+        console.error('Update Topic Context Error:', error);
+        return { error: 'Failed to update topic context' };
     }
 }

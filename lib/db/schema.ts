@@ -8,9 +8,24 @@ import {
   pgEnum,
   decimal,
   boolean,
-  jsonb
+  jsonb,
+  customType
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+
+// Custom type for pgvector
+const vector = customType<{ data: number[] }>({
+  dataType() {
+    return 'vector(768)';
+  },
+  toDriver(value: number[]) {
+    return `[${value.join(',')}]`;
+  },
+  fromDriver(value: unknown) {
+    if (typeof value !== 'string') return [];
+    return value.slice(1, -1).split(',').map(Number);
+  },
+});
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -444,6 +459,8 @@ export const topics = pgTable('topics', {
   subject: varchar('subject', { length: 255 }).notNull(),
   educationLevel: varchar('education_level', { length: 20 }).notNull().default('CSEC'),
   description: text('description'),
+  systemInstructions: text('system_instructions'),
+  lessonPlan: text('lesson_plan'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -548,6 +565,24 @@ export const flashcardTestsRelations = relations(flashcardTests, ({ one }) => ({
   }),
   topic: one(topics, {
     fields: [flashcardTests.topicId],
+    references: [topics.id],
+  }),
+}));
+
+export const topicResources = pgTable('topic_resources', {
+  id: serial('id').primaryKey(),
+  topicId: integer('topic_id')
+    .notNull()
+    .references(() => topics.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  embedding: vector('embedding'),
+  type: varchar('type', { length: 50 }).notNull(), // 'document', 'flashcard', 'past_paper'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const topicResourcesRelations = relations(topicResources, ({ one }) => ({
+  topic: one(topics, {
+    fields: [topicResources.topicId],
     references: [topics.id],
   }),
 }));

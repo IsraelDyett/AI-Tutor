@@ -84,31 +84,82 @@ export async function POST(req: Request) {
         }
         // --- End Subject Context ---
 
-        // Process user-uploaded files
+        // Process user-uploaded files and ingest into RAG
         if (files && Array.isArray(files)) {
             const mammoth = require("mammoth");
+            const { embedText } = require("@/lib/ai/embedding");
+            const { chunkText } = require("@/lib/ai/chunking");
+            const { db } = require("@/lib/db/drizzle");
+            const { topicResources } = require("@/lib/db/schema");
+            const { sql } = require("drizzle-orm");
 
             for (const file of files) {
                 const { name, type: mimeType, data } = file;
+                let extractedText = "";
 
                 if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
                     try {
-                        // Word Document: Extract text
                         const buffer = Buffer.from(data, "base64");
                         const result = await mammoth.extractRawText({ buffer });
-                        fileContextText += `\n\n--- Content from ${name} ---\n${result.value}`;
+                        extractedText = result.value;
+                        fileContextText += `\n\n--- Content from ${name} ---\n${extractedText}`;
                     } catch (err) {
                         console.error(`Failed to parse docx ${name}:`, err);
                     }
+                } else if (mimeType === "text/plain") {
+                    extractedText = Buffer.from(data, "base64").toString('utf-8');
+                    fileContextText += `\n\n--- Content from ${name} ---\n${extractedText}`;
+                } else if (mimeType === "application/pdf") {
+                    try {
+                        const { extractTextFromPDF } = require("@/lib/ai/pdf-util");
+                        const buffer = Buffer.from(data, "base64");
+                        extractedText = await extractTextFromPDF(buffer);
+                        fileContextText += `\n\n--- Content from ${name} ---\n${extractedText}`;
+
+                        // Also send to Gemini as inlineData for better analysis
+                        parts.push({
+                            inlineData: {
+                                mimeType: mimeType,
+                                data: data
+                            }
+                        });
+                    } catch (err) {
+                        console.error(`Failed to parse pdf ${name}:`, err);
+                        // Fallback: still send to Gemini
+                        parts.push({
+                            inlineData: {
+                                mimeType: mimeType,
+                                data: data
+                            }
+                        });
+                    }
                 } else {
-                    // Images or PDF: Send to Gemini as inline data
-                    // Gemini supports: image/png, image/jpeg, image/webp, image/heic, image/heif, application/pdf
+                    // Images: Send to Gemini as inline data
                     parts.push({
                         inlineData: {
                             mimeType: mimeType,
                             data: data
                         }
                     });
+                }
+
+                // Ingest into RAG if we have text and a topicId (we need to get topicId from body)
+                const { topicId } = body;
+                if (extractedText && topicId) {
+                    const chunks = chunkText(extractedText);
+                    for (const chunk of chunks) {
+                        try {
+                            const embedding = await embedText(chunk);
+                            await db.insert(topicResources).values({
+                                topicId: Number(topicId),
+                                content: `Document: ${name} | Content: ${chunk}`,
+                                embedding: embedding,
+                                type: 'document'
+                            });
+                        } catch (ingestErr) {
+                            console.error(`Failed to ingest chunk from ${name}:`, ingestErr);
+                        }
+                    }
                 }
             }
         }

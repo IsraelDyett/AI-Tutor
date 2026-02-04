@@ -53,6 +53,8 @@ import { Brain, FileText, MessageCircle, Mic, ArrowLeft, RefreshCw, Trophy } fro
 import LiveAudioComponent from '@/components/live-simulation-component';
 import FlashcardGenerator from '@/components/flashcard-generator';
 import PastPaperGenerator from '@/components/past-paper-generator';
+import KnowledgeUploader from '@/components/knowledge-uploader';
+import TopicSettingsDialog from '@/components/topic-settings-dialog';
 import TextTutorChat from '@/components/text-tutor-chat';
 import FlashcardTestModal from '@/components/flashcard-test-modal';
 import { useRouter } from 'next/navigation';
@@ -83,7 +85,9 @@ interface TopicViewProps {
     questions: Question[];
     voicePrompt: string;
     backgroundContext?: string;
+    lessonPlan?: string;
     initialBestScore?: { score: number; totalQuestions: number } | null;
+    canEdit: boolean;
 }
 
 export default function TopicView({
@@ -96,9 +100,11 @@ export default function TopicView({
     questions,
     voicePrompt,
     backgroundContext = "",
-    initialBestScore = null
+    lessonPlan = "",
+    initialBestScore = null,
+    canEdit = false
 }: TopicViewProps) {
-    const [activeTab, setActiveTab] = useState('flashcards');
+    const [activeTab, setActiveTab] = useState('voice');
     const [isTestOpen, setIsTestOpen] = useState(false);
     const [bestScore, setBestScore] = useState(initialBestScore);
     const router = useRouter();
@@ -145,6 +151,16 @@ export default function TopicView({
                                 : "Master the building blocks of life."}
                         </p>
                     </div>
+                    {canEdit && !isAllTopics && (
+                        <div className="flex gap-2">
+                            <KnowledgeUploader topicId={topicId} topicName={topicName} />
+                            <TopicSettingsDialog
+                                topicId={topicId}
+                                topicName={topicName}
+                                initialLessonPlan={lessonPlan}
+                            />
+                        </div>
+                    )}
                     {/* Generator & Test Component */}
                     {activeTab === 'flashcards' && (
                         <div className="flex flex-wrap gap-3 items-center w-full sm:w-auto">
@@ -188,15 +204,50 @@ export default function TopicView({
                 </div>
             </div>
 
-            <Tabs defaultValue="flashcards" className="w-full" onValueChange={setActiveTab}>
+            <Tabs defaultValue="voice" className="w-full" onValueChange={setActiveTab}>
                 <div className="overflow-x-auto pb-2 -mx-2 px-2 custom-scrollbar">
                     <TabsList className="flex w-max min-w-full lg:grid lg:w-[500px] lg:grid-cols-4">
-                        <TabsTrigger value="flashcards" className="flex-1">Flashcards</TabsTrigger>
-                        <TabsTrigger value="pastpapers" className="flex-1">Past Papers</TabsTrigger>
                         <TabsTrigger value="voice" className="flex-1">Voice Tutor</TabsTrigger>
                         <TabsTrigger value="text" className="flex-1">Text Tutor</TabsTrigger>
+                        <TabsTrigger value="flashcards" className="flex-1">Flashcards</TabsTrigger>
+                        <TabsTrigger value="pastpapers" className="flex-1">Past Papers</TabsTrigger>
                     </TabsList>
                 </div>
+
+                {/* Voice Tutor Tab */}
+                <TabsContent value="voice" className="mt-6">
+                    <Card className="border-orange-200 shadow-md">
+                        <CardHeader className="bg-gradient-to-r from-orange-50 to-white border-b border-orange-100">
+                            <CardTitle className="flex items-center text-orange-700">
+                                <Mic className="h-5 w-5 mr-2" />
+                                Voice Tutor Session {isAllTopics ? "(General)" : ""}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0 min-h-[500px] relative">
+                            <div className="h-[500px]">
+                                <LiveAudioComponent
+                                    prompt={contextPrompt}
+                                    topicId={topicId === 'all' ? -1 : parseInt(topicId)}
+                                    subject={subject}
+                                    level={level}
+                                    onConversationEnd={(blob) => console.log('Session ended', blob)}
+                                    isEnding={false}
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Text Tutor Tab */}
+                <TabsContent value="text" className="mt-6">
+                    <TextTutorChat
+                        level={level}
+                        contextPrompt={contextPrompt}
+                        topicName={topicName}
+                        subject={subject}
+                        topicId={topicId}
+                    />
+                </TabsContent>
 
                 {/* Flashcards Tab */}
                 <TabsContent value="flashcards" className="mt-6 space-y-6">
@@ -267,37 +318,6 @@ export default function TopicView({
                             )}
                         </CardContent>
                     </Card>
-                </TabsContent>
-
-                {/* Voice Tutor Tab */}
-                <TabsContent value="voice" className="mt-6">
-                    <Card className="border-orange-200 shadow-md">
-                        <CardHeader className="bg-gradient-to-r from-orange-50 to-white border-b border-orange-100">
-                            <CardTitle className="flex items-center text-orange-700">
-                                <Mic className="h-5 w-5 mr-2" />
-                                Voice Tutor Session {isAllTopics ? "(General)" : ""}
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0 min-h-[500px] relative">
-                            <div className="h-[500px]">
-                                <LiveAudioComponent
-                                    prompt={contextPrompt}
-                                    onConversationEnd={(blob) => console.log('Session ended', blob)}
-                                    isEnding={false}
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* Text Tutor Tab */}
-                <TabsContent value="text" className="mt-6">
-                    <TextTutorChat
-                        level={level}
-                        contextPrompt={contextPrompt}
-                        topicName={topicName}
-                        subject={subject}
-                    />
                 </TabsContent>
             </Tabs>
 

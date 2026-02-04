@@ -13,9 +13,38 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { messages, context, subject, level } = body;
+        const { messages, context, subject, level, topicId } = body;
         // messages: { role: 'user' | 'model', content: string, files?: [] }[]
         // context: string (the serialized flashcards/questions + system prompt)
+
+        // --- Vector Similarity Search (RAG) ---
+        let ragContextText = "";
+        const lastMessage = messages[messages.length - 1];
+
+        if (topicId) {
+            try {
+                const { searchResources, getTopics } = require("@/app/(dashboard)/actions");
+                let searchIds: number[] = [];
+
+                if (topicId === 'all') {
+                    const accessibleTopics = await getTopics(subject, level);
+                    searchIds = accessibleTopics.map((t: any) => t.id);
+                } else {
+                    const id = parseInt(topicId);
+                    if (!isNaN(id)) searchIds = [id];
+                }
+
+                if (searchIds.length > 0) {
+                    const searchResults = await searchResources(lastMessage.content, searchIds);
+                    if (searchResults && Array.isArray(searchResults) && searchResults.length > 0) {
+                        ragContextText = "\n\n--- Relevant Knowledge Base Chunks ---\n" +
+                            searchResults.map((r: any) => r.content).join("\n\n");
+                    }
+                }
+            } catch (ragError) {
+                console.error("RAG Search Error in Chat API:", ragError);
+            }
+        }
 
         // --- Load Subject-Specific Context (Syllabus, Past Papers, etc.) ---
         let backgroundContextText = "";
@@ -80,7 +109,7 @@ export async function POST(req: Request) {
         const modelName = "gemini-2.5-flash";
         const model = genAI.getGenerativeModel({
             model: modelName,
-            systemInstruction: (levelSpecificInstructions || process.env.TUTOR_SYSTEM_INSTRUCTION) + "\n\n" + context + "\n\n" + backgroundContextText
+            systemInstruction: (levelSpecificInstructions || process.env.TUTOR_SYSTEM_INSTRUCTION) + "\n\n" + context + "\n\n" + backgroundContextText + ragContextText
         });
 
         const previousMessages = messages.slice(0, -1);
@@ -104,7 +133,6 @@ export async function POST(req: Request) {
         }
 
         // The last message is the new one (User's)
-        const lastMessage = messages[messages.length - 1];
         const newParts: any[] = [{ text: lastMessage.content }];
 
         // If there was no history (this is the first user message), we might need to inject contextParts here

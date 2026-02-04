@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { GoogleGenAI, LiveServerMessage, Modality, Session } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality, Session, Type } from '@google/genai';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createBlob, decode, decodeAudioData } from '@/lib/utils';
 import { Analyser } from '@/lib/analyser';
@@ -22,13 +22,16 @@ import { vs as backdropVS, fs as backdropFS } from '@/lib/shaders/backdrop';
 import { vs as sphereVS } from '@/lib/shaders/sphere';
 import { Settings, Volume2, Check } from 'lucide-react';
 
-interface LiveAudioComponentProps {
+export interface LiveAudioComponentProps {
   prompt: string;
+  topicId: number;
+  subject?: string;
+  level?: string;
   onConversationEnd: (audioBlob: Blob) => void;
   isEnding: boolean;
 }
 
-export default function LiveAudioComponent({ prompt, onConversationEnd, isEnding }: LiveAudioComponentProps) {
+export default function LiveAudioComponent({ prompt, topicId, subject, level, onConversationEnd, isEnding }: LiveAudioComponentProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [status, setStatus] = useState('Initializing...');
   const [error, setError] = useState('');
@@ -162,6 +165,38 @@ export default function LiveAudioComponent({ prompt, onConversationEnd, isEnding
             updateStatus('Connection opened. Press record to start the session.');
           },
           onmessage: async (message: LiveServerMessage) => {
+            // Check for tool calls
+            if (message.toolCall && message.toolCall.functionCalls) {
+              const { searchResources, getTopics } = require('@/app/(dashboard)/actions');
+              for (const call of message.toolCall.functionCalls) {
+                if (call.name === 'consult_knowledge_base') {
+                  const { query } = call.args as { query: string };
+                  updateStatus(`Searching knowledge base for: "${query}"...`);
+
+                  let searchIds: number[] = [];
+                  if (topicId === -1 && subject) {
+                    const accessibleTopics = await getTopics(subject, level);
+                    searchIds = accessibleTopics.map((t: any) => t.id);
+                  } else {
+                    searchIds = [topicId];
+                  }
+
+                  const results = await searchResources(query, searchIds);
+
+                  (session.current as any)?.send({
+                    clientToolResponse: {
+                      functionResponses: [{
+                        name: 'consult_knowledge_base',
+                        id: call.id,
+                        response: { result: Array.isArray(results) ? results.join('\n\n') : results }
+                      }]
+                    }
+                  });
+                }
+              }
+              return;
+            }
+
             const serverContent = message.serverContent;
             if (!serverContent) return;
 
@@ -208,6 +243,22 @@ export default function LiveAudioComponent({ prompt, onConversationEnd, isEnding
         config: {
           systemInstruction: prompt,
           responseModalities: [Modality.AUDIO],
+          tools: [{
+            functionDeclarations: [{
+              name: 'consult_knowledge_base',
+              description: 'Consult the topic-specific knowledge base (documents, flashcards, past papers) to provide accurate information.',
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  query: {
+                    type: Type.STRING,
+                    description: 'The search query to look up in the knowledge base.'
+                  }
+                },
+                required: ['query']
+              }
+            }]
+          }]
         },
       });
     } catch (e: any) {

@@ -76,6 +76,7 @@ export default function PastPaperGenerator({ subject, topicId, topicName, onSave
                     type: 'questions',
                     subject,
                     topic: topicName,
+                    topicId: topicId,
                     count: 3, // Default batch size for questions
                     files: files.map(f => ({
                         name: f.name,

@@ -20,9 +20,10 @@ interface TextTutorChatProps {
     contextPrompt: string; // The system instructions + flashcards/past paper context
     topicName: string;
     subject: string;
+    topicId: string;
 }
 
-export default function TextTutorChat({ level, contextPrompt, topicName, subject }: TextTutorChatProps) {
+export default function TextTutorChat({ level, contextPrompt, topicName, subject, topicId }: TextTutorChatProps) {
     const [messages, setMessages] = useState<Message[]>([
         { role: 'model', content: `Hello! I'm your AI Tutor for **${topicName}**. How can I help you today? You can ask me questions or upload images/notes for me to analyze.` }
     ]);
@@ -139,7 +140,8 @@ export default function TextTutorChat({ level, contextPrompt, topicName, subject
                     messages: apiMessages,
                     context: contextPrompt,
                     subject,
-                    level
+                    level,
+                    topicId
                 })
             });
 
