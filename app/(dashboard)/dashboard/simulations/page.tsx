@@ -190,11 +190,7 @@ export default function SalesSimulationPage() {
                 {simulationState === 'active' && difficulty && (
                     <div>
                         <div className="w-full h-[500px] relative rounded-lg overflow-hidden border">
-                            <LiveSimulationComponent
-                                prompt={buildSimulationPrompt(difficulty, manualText)}
-                                onConversationEnd={handleConversationEnd}
-                                isEnding={isEndingSession}
-                            />
+                           
                         </div>
                         <div className="mt-4 text-center">
                             <Button variant="destructive" onClick={handleEndSimulation} disabled={isEndingSession}>
