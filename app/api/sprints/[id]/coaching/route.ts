@@ -19,11 +19,15 @@ type CoachingAnalysisPayload = {
  */
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  // { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // ✅ Fix: Type as Promise
+
 ) {
   try {
     const user = await getUser();
-    const sprintId = parseInt(params.id, 10);
+    const { id } = await params; // ✅ Await params before accessing properties
+    // const sprintId = parseInt(params.id, 10);
+    const sprintId = parseInt(id, 10);
 
     // Use the same authorization and validation logic as your other route
     if (!user || isNaN(sprintId)) {
