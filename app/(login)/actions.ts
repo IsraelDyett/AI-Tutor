@@ -112,6 +112,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 });
 
 const signUpSchema = z.object({
+  name: z.string().max(100).optional(),
   email: z.string().email(),
   password: z.string().min(8),
   confirmPassword: z.string().min(8),
@@ -198,6 +199,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
     email,
     passwordHash,
     role: userRole,
+    name: data.name?.trim() || undefined,
     phoneNumber: data.phoneNumber,
     country: data.country,
   };

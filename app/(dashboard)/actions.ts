@@ -62,10 +62,17 @@ export async function getBestFlashcardScore(topicId: number) {
 
 export async function getSubjectContextText(subject: string, level: string = 'csec') {
     try {
+        console.log(`[getSubjectContextText] Fetching context for ${subject} (${level})...`);
         const files = await getSubjectContext(subject, level);
         let extractedText = "";
 
         for (const file of files) {
+            // Limit total text to around 50k characters to prevent timeouts/OOM
+            if (extractedText.length > 50000) {
+                console.warn(`[getSubjectContextText] Context limit reached for ${subject}, truncating...`);
+                break;
+            }
+
             if (file.mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
                 const buffer = Buffer.from(file.data, "base64");
                 const result = await mammoth.extractRawText({ buffer });
@@ -75,13 +82,12 @@ export async function getSubjectContextText(subject: string, level: string = 'cs
                 extractedText += `\n\n--- Content from ${file.name} ---\n${text}`;
             } else if (file.mimeType === "application/pdf") {
                 try {
+                    console.log(`[getSubjectContextText] Extracting PDF: ${file.name}`);
                     const buffer = Buffer.from(file.data, "base64");
                     const { extractTextFromPDF } = await import('@/lib/ai/pdf-util');
                     const pdfText = await extractTextFromPDF(buffer);
                     if (pdfText && pdfText.trim()) {
                         extractedText += `\n\n--- Content from PDF: ${file.name} ---\n${pdfText}`;
-                    } else {
-                        extractedText += `\n\n[File Found: ${file.name} (PDF - Extraction empty)]`;
                     }
                 } catch (pdfErr) {
                     console.error(`Error parsing PDF ${file.name}:`, pdfErr);
@@ -89,7 +95,10 @@ export async function getSubjectContextText(subject: string, level: string = 'cs
                 }
             }
         }
-        return extractedText;
+
+        const finalResult = extractedText.length > 60000 ? extractedText.substring(0, 60000) + "..." : extractedText;
+        console.log(`[getSubjectContextText] Completed for ${subject}. Total length: ${finalResult.length}`);
+        return finalResult;
     } catch (err) {
         console.error("Error getting context text:", err);
         return "";

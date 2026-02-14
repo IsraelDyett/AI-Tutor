@@ -1,3 +1,4 @@
+//app\(dashboard)\dashboard\[level]\subjects\[subject]\[topicId]\page.tsx
 import {
     getFlashcards,
     getTopic,
@@ -88,7 +89,9 @@ export default async function TopicPage({ params }: { params: Promise<{ level: s
     - Only Speak in Standard English regardless of if the student speaks another language.excelpt if the topic is spanish or french in which case you can use spanish or french appropriately`;
 
     return (
-        <main className="p-4 lg:p-8 min-h-screen bg-gray-50">
+        // <main className="h-full overflow-y-auto p-4 lg:p-8 bg-gray-50">
+        <main className="h-full overflow-y-auto p-4 lg:p-8 bg-gray-50 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+    
             <TopicView
                 level={level}
                 subject={decodedSubject}
