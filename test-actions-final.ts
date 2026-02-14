@@ -11,7 +11,11 @@ async function test() {
             console.log('Warning: No text extracted. Check if files exist in lib/ai/context/english/');
         }
     } catch (e) {
-        console.log('Test Error:', e.message);
+        if (e instanceof Error) {
+            console.log('Test Error:', e.message);
+        } else {
+            console.log('Test Error:', e);
+        }
     }
 }
 test();
