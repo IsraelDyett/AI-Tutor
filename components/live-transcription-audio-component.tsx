@@ -1089,29 +1089,36 @@ export default function LiveAudioComponent({ prompt, onConversationEnd, isEnding
             const serverContent = message.serverContent;
             if (!serverContent) return;
 
-            const aiPart = serverContent.modelTurn?.parts?.[0];
-            if (aiPart?.inlineData) {
-              const audio = aiPart.inlineData;
-              // Use the single, shared audio context
-              if (audioContext.current && outputNode.current && mixedStreamDestinationRef.current) {
-                // Decode audio using the single context. It will handle resampling from 24kHz to 16kHz.
-                const audioBuffer = await decodeAudioData(
-                  decode(audio.data ?? ''),
-                  audioContext.current, 24000, 1
-                );
-                const source = audioContext.current.createBufferSource();
-                source.buffer = audioBuffer;
-
-                source.connect(outputNode.current);
-                // This connection will now succeed as both nodes are from the same context
-                source.connect(mixedStreamDestinationRef.current);
-
-                source.addEventListener('ended', () => sources.current.delete(source));
-
-                nextStartTime.current = Math.max(nextStartTime.current, audioContext.current.currentTime);
-                source.start(nextStartTime.current);
-                nextStartTime.current += audioBuffer.duration;
-                sources.current.add(source);
+            // Handle AI audio from any part (not just parts[0])
+            const modelTurn = serverContent.modelTurn;
+            if (modelTurn?.parts) {
+              for (const part of modelTurn.parts) {
+                const audio = part.inlineData;
+                if (!audio?.data || !audio.mimeType?.includes('audio')) continue;
+                // Play when we have a valid output chain; mixedStreamDestinationRef is optional (for recording)
+                if (audioContext.current && outputNode.current) {
+                  try {
+                    const audioBuffer = await decodeAudioData(
+                      decode(audio.data ?? ''),
+                      audioContext.current,
+                      24000,
+                      1
+                    );
+                    const source = audioContext.current.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(outputNode.current);
+                    if (mixedStreamDestinationRef.current) {
+                      source.connect(mixedStreamDestinationRef.current);
+                    }
+                    source.addEventListener('ended', () => sources.current.delete(source));
+                    nextStartTime.current = Math.max(nextStartTime.current, audioContext.current.currentTime);
+                    source.start(nextStartTime.current);
+                    nextStartTime.current += audioBuffer.duration;
+                    sources.current.add(source);
+                  } catch (e) {
+                    console.warn('Failed to decode/play AI audio:', e);
+                  }
+                }
               }
             }
 
@@ -1132,6 +1139,9 @@ export default function LiveAudioComponent({ prompt, onConversationEnd, isEnding
         config: {
           systemInstruction: prompt,
           responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Orus' } },
+          },
         },
       });
     } catch (e: any) {
@@ -1249,7 +1259,7 @@ export default function LiveAudioComponent({ prompt, onConversationEnd, isEnding
     } catch (err: any) {
       updateError(`Microphone error: ${err.message}.`);
     }
-  }, [isRecording, onConversationEnd]);
+  }, [isRecording, onConversationEnd, selectedDeviceId]);
 
   useEffect(() => {
     if (isEnding && isRecording) {

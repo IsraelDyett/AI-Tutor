@@ -1021,6 +1021,8 @@ import { vs as sphereVS } from '@/lib/shaders/sphere';
 import { Settings, Volume2, Check, LayoutGrid, RefreshCw } from 'lucide-react';
 import { ActiveContextPanel, VisualContext } from './active-context-panel';
 import { v4 as uuidv4 } from 'uuid';
+import { searchResources, getTopics } from '@/app/(dashboard)/actions'; 
+
 
 export interface LiveAudioComponentProps {
   prompt: string;
@@ -1029,6 +1031,16 @@ export interface LiveAudioComponentProps {
   level?: string;
   onConversationEnd: (audioBlob: Blob) => void;
   isEnding: boolean;
+}
+
+// Helper to convert audio buffer to Base64
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
 export default function LiveAudioComponent({ prompt, topicId, subject, level, onConversationEnd, isEnding }: LiveAudioComponentProps) {
@@ -1113,6 +1125,7 @@ export default function LiveAudioComponent({ prompt, topicId, subject, level, on
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const mixedStreamDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const isInterruptedRef = useRef(false); // New Ref
 
   const updateStatus = (msg: string) => {
     console.log(msg);
@@ -1124,12 +1137,16 @@ export default function LiveAudioComponent({ prompt, topicId, subject, level, on
 
   const isRecordingRef = useRef(isRecording);
   isRecordingRef.current = isRecording;
+  // Guard so we never call initSession() while user is in the middle of clicking record
+  // (setState hasn't committed yet so isRecordingRef is still false).
+  const isStartingConversationRef = useRef(false);
 
   // --- FIX 2: STABILIZE USECALLBACKS ---
   // This function is now stable and won't cause re-renders because it has no dependencies.
   // It uses a ref to get the current recording state.
   const stopConversation = useCallback(() => {
     if (!isRecordingRef.current) return;
+    isStartingConversationRef.current = false;
     setIsRecording(false);
     updateStatus('Ending conversation and preparing audio...');
 
@@ -1138,16 +1155,28 @@ export default function LiveAudioComponent({ prompt, topicId, subject, level, on
     }
 
     scriptProcessorNode.current?.disconnect();
-    // No need to disconnect sourceNode, as it's part of the stream that's stopping
     mediaStream.current?.getTracks().forEach((track) => track.stop());
-    session.current?.close();
-
+    try {
+      session.current?.close();
+    } catch (_) {
+      // Session may already be closed by server; ignore
+    }
+    session.current = null;
+    sessionOpen.current = false;
     scriptProcessorNode.current = null;
     mediaStream.current = null;
   }, []); // Empty dependency array makes this function stable
 
   const initSession = useCallback(async () => {
     if (!client.current) return;
+    // Close any existing session before opening a new one (avoids double-session; cleanup no longer closes)
+    if (session.current) {
+      try {
+        session.current.close();
+      } catch (_) {}
+      session.current = null;
+      sessionOpen.current = false;
+    }
     updateStatus('Connecting to Gemini...');
 
     const model = 'gemini-2.5-flash-native-audio-preview-09-2025';
@@ -1248,171 +1277,212 @@ Tutor (Audio): "Since the denominators are the same, we simply add the top numbe
             updateStatus('Connection opened. Press record to start the session.');
           },
           onmessage: async (message: LiveServerMessage) => {
+            let pendingToolResponses: Array<{ name?: string; id?: string; response: object }> = [];
+            try {
+              if (message.serverContent && !message.serverContent.interrupted) {
+                isInterruptedRef.current = false;
+              }
 
-            // Check for tool calls
-            if (message.toolCall && message.toolCall.functionCalls) {
-              try {
-                const { searchResources, getTopics } = require('@/app/(dashboard)/actions');
-                console.log('[Tool Debug] Received tool calls:', message.toolCall.functionCalls);
+              // 1. Handle API variation (toolCall vs toolCalls)
+              const toolCallData = message.toolCall || (message as any).toolCalls;
 
-                // Process all tool calls in parallel and collect responses
-                const functionResponses = await Promise.all(message.toolCall.functionCalls.map(async (call) => {
-                  console.log(`[Tool Debug] Processing call: ${call.name} (ID: ${call.id})`);
+              // 2. Use toolCallData instead of message.toolCall
+              if (toolCallData && toolCallData.functionCalls) {
+                try {
+                  console.log('[Tool Debug] Received tool calls:', toolCallData.functionCalls);
 
-                  if (call.name === 'consult_knowledge_base') {
-                    try {
-                      const { query } = call.args as { query: string };
-                      updateStatus(`Searching knowledge base for: "${query}"...`);
+                  // Process all tool calls in parallel and collect responses
+                  const functionResponses = await Promise.all(toolCallData.functionCalls.map(async (call: any) => {
+                    console.log(`[Tool Debug] Processing call: ${call.name} (ID: ${call.id})`);
 
-                      // Set loading state in visual context
-                      const loadingId = uuidv4();
-                      setVisualContexts(prev => {
-                        const newer = [...prev, {
+                    if (call.name === 'consult_knowledge_base') {
+                      try {
+                        const { query } = call.args as { query: string };
+                        updateStatus(`Searching knowledge base for: "${query}"...`);
+
+                        const loadingId = uuidv4();
+                        setVisualContexts(prev => [...prev, {
                           id: loadingId,
                           type: 'loading' as const,
                           content: `Searching: ${query} `,
                           source: 'database' as const,
                           timestamp: new Date()
-                        }];
-                        console.log('[Tool Debug] Setting loading context:', newer);
-                        return newer;
-                      });
-                      setIsPanelOpen(true);
+                        }]);
+                        setIsPanelOpen(true);
 
-                      let searchIds: number[] = [];
-                      if (topicId === -1 && subject) {
-                        try {
-                          const accessibleTopics = await getTopics(subject, level);
-                          searchIds = accessibleTopics.map((t: any) => t.id);
-                        } catch (e) { searchIds = []; }
-                      } else {
-                        searchIds = [topicId];
+                        let searchIds: number[] = [];
+                        if (topicId === -1 && subject) {
+                          try {
+                            const accessibleTopics = await getTopics(subject, level);
+                            if (Array.isArray(accessibleTopics)) {
+                              searchIds = accessibleTopics.map((t: any) => t.id);
+                            }
+                          } catch (e) { searchIds = []; }
+                        } else {
+                          searchIds = [topicId];
+                        }
+
+                        const results = await searchResources(query, searchIds);
+                        console.log('[RAG Debug] searchResources results:', results);
+
+                        const isValidArray = Array.isArray(results);
+
+                        if (!results || !isValidArray || results.length === 0) {
+                          console.warn('[RAG Debug] Result text is empty or error returned, using fallback.');
+                        }
+
+                        let resultText = "";
+                        if (isValidArray && results.length > 0) {
+                          resultText = results.join('\n\n');
+                        } else {
+                          resultText = "No relevant information found in the knowledge base.";
+                        }
+
+                        setVisualContexts(prev => prev.map(ctx =>
+                          ctx.id === loadingId ? { ...ctx, type: 'source_text' as const, content: resultText } : ctx
+                        ));
+
+                        return {
+                          name: 'consult_knowledge_base',
+                          id: call.id,
+                          response: { result: resultText }
+                        };
+                      } catch (err) {
+                        console.error('[Tool Debug] Error in consult_knowledge_base:', err);
+                        return {
+                          name: 'consult_knowledge_base',
+                          id: call.id,
+                          response: { error: 'Internal Error' }
+                        };
                       }
 
-                      const results = await searchResources(query, searchIds);
-                      console.log('[RAG Debug] searchResources results:', results);
-
-                      let resultText = Array.isArray(results) && results.length > 0
-                        ? results.join('\n\n')
-                        : "No relevant information found in the knowledge base.";
-
-                      if (!results || results.length === 0) {
-                        console.warn('[RAG Debug] Result text is empty, using fallback.');
+                    } else if (call.name === 'update_blackboard') {
+                      try {
+                         // 1. Robust Argument Parsing (Handle string vs object)
+                         const args = call.args as any;
+                         const content = typeof args === 'string' ? JSON.parse(args).content : args?.content;
+                         
+                         console.log('[Tool Debug] Blackboard content:', content);
+ 
+                         if (content) {
+                             setVisualContexts(prev => [...prev, {
+                               id: uuidv4(),
+                               type: 'formula' as const,
+                               content: String(content),
+                               source: 'generated' as const,
+                               timestamp: new Date()
+                             }]);
+                             setIsPanelOpen(true);
+                         }
+ 
+                         // 2. Return 'result' instead of 'success'
+                         return {
+                           name: 'update_blackboard',
+                           id: call.id,
+                           response: { result: "Blackboard updated successfully" }
+                         };
+                      } catch (err) {
+                        console.error('[Tool Debug] Error in update_blackboard:', err);
+                        return { name: 'update_blackboard', id: call.id, response: { error: 'Failed' } };
                       }
-
-                      // Update the loading context with actual result
-                      setVisualContexts(prev => {
-                        const updated = prev.map(ctx =>
-                          ctx.id === loadingId
-                            ? { ...ctx, type: 'source_text' as const, content: resultText }
-                            : ctx
-                        );
-                        console.log('[Tool Debug] Updated visualContexts with RAG result:', updated);
-                        return updated;
-                      });
-
-                      return {
-                        name: 'consult_knowledge_base',
-                        id: call.id,
-                        response: { result: resultText }
-                      };
-                    } catch (err) {
-                      console.error('[Tool Debug] Error in consult_knowledge_base:', err);
-                      return {
-                        name: 'consult_knowledge_base',
-                        id: call.id,
-                        response: { error: 'Internal Error' } // Fallback to avoid crash
-                      };
                     }
 
-                  } else if (call.name === 'update_blackboard') {
-                    try {
-                      const { content } = call.args as { content: string };
-                      setVisualContexts(prev => {
-                        const newer = [...prev, {
-                          id: uuidv4(),
-                          type: 'formula' as const,
-                          content: content,
-                          source: 'generated' as const,
-                          timestamp: new Date()
-                        }];
-                        console.log('[Tool Debug] Adding formula to blackboard:', newer);
-                        return newer;
-                      });
-                      setIsPanelOpen(true);
+                    // Fallback for unknown tools
+                    console.warn(`[Tool Debug] Unknown tool: ${call.name}`);
+                    return {
+                      name: call.name,
+                      id: call.id,
+                      response: { error: 'Unknown tool' }
+                    };
+                  }));
 
-                      return {
-                        name: 'update_blackboard',
-                        id: call.id,
-                        response: { success: true }
-                      };
-                    } catch (err) {
-                      console.error('[Tool Debug] Error in update_blackboard:', err);
-                      return { name: 'update_blackboard', id: call.id, response: { error: 'Failed' } };
-                    }
-
-                  }
-
-                  // Fallback for unknown tools
-                  console.warn(`[Tool Debug] Unknown tool: ${call.name}`);
-                  return {
-                    name: call.name,
-                    id: call.id,
-                    response: { error: 'Unknown tool' }
-                  };
-                }));
-
-                // Send all responses in a single batch
-                if (functionResponses.length > 0) {
-                  console.log('[Tool Debug] Sending batch responses:', functionResponses);
-                  session.current?.sendToolResponse({
-                    functionResponses: functionResponses
-                  });
+                  pendingToolResponses = [...functionResponses];
+                } catch (mainErr) {
+                  console.error('[Tool Debug] Major error in tool processing loop:', mainErr);
                 }
-              } catch (mainErr) {
-                console.error('[Tool Debug] Major error in tool processing loop:', mainErr);
               }
-            }
 
-            const serverContent = message.serverContent;
-            if (!serverContent) return;
+              // 3. Handle Audio Content
+              const serverContent = message.serverContent;
+              if (serverContent) {
+                if (serverContent.interrupted) {
+                  console.log('[Gemini Debug] Interruption detected. Clearing audio and pending tools.');
+                  isInterruptedRef.current = true;
+                  sources.current.forEach(source => source.stop());
+                  sources.current.clear();
+                  nextStartTime.current = 0;
+                  pendingToolResponses = [];
+                }
 
-            const aiPart = serverContent.modelTurn?.parts?.[0];
-            if (aiPart?.inlineData) {
-              const audio = aiPart.inlineData;
-              // Use the single, shared audio context
-              if (audioContext.current && outputNode.current && mixedStreamDestinationRef.current) {
-                // Decode audio using the single context. It will handle resampling from 24kHz to 16kHz.
-                const audioBuffer = await decodeAudioData(
-                  decode(audio.data ?? ''),
-                  audioContext.current, 24000, 1
-                );
-                const source = audioContext.current.createBufferSource();
-                source.buffer = audioBuffer;
-
-                source.connect(outputNode.current);
-                // This connection will now succeed as both nodes are from the same context
-                source.connect(mixedStreamDestinationRef.current);
-
-                source.addEventListener('ended', () => sources.current.delete(source));
-
-                nextStartTime.current = Math.max(nextStartTime.current, audioContext.current.currentTime);
-                source.start(nextStartTime.current);
-                nextStartTime.current += audioBuffer.duration;
-                sources.current.add(source);
+                const modelTurn = serverContent.modelTurn;
+                if (modelTurn?.parts) {
+                  for (const part of modelTurn.parts) {
+                    const audio = part.inlineData;
+                    if (!audio?.data || !audio.mimeType?.includes('audio')) continue;
+                    if (audioContext.current && outputNode.current) {
+                      try {
+                        const audioBuffer = await decodeAudioData(
+                          decode(audio.data ?? ''),
+                          audioContext.current,
+                          24000,
+                          1
+                        );
+                        const source = audioContext.current.createBufferSource();
+                        source.buffer = audioBuffer;
+                        source.connect(outputNode.current);
+                        if (mixedStreamDestinationRef.current) source.connect(mixedStreamDestinationRef.current);
+                        source.addEventListener('ended', () => sources.current.delete(source));
+                        
+                        // Ensure smooth playback time
+                        const currentTime = audioContext.current.currentTime;
+                        if (nextStartTime.current < currentTime) {
+                            nextStartTime.current = currentTime;
+                        }
+                        
+                        source.start(nextStartTime.current);
+                        nextStartTime.current += audioBuffer.duration;
+                        sources.current.add(source);
+                      } catch (e) {
+                        console.warn('[Gemini Debug] Failed to decode/play AI audio:', e);
+                      }
+                    }
+                  }
+                }
               }
-            }
 
-            if (serverContent.interrupted) {
-              sources.current.forEach(source => source.stop());
-              sources.current.clear();
-              nextStartTime.current = 0;
+              // 4. Send Tool Responses (Delayed slightly to ensure processing order)
+              if (pendingToolResponses.length > 0) {
+                const responses = pendingToolResponses;
+                const sessionRef = session.current;
+                
+                // Reduced timeout to 0 to send immediately after processing current message loop
+                setTimeout(() => {
+                  if (!sessionRef || !sessionOpen.current) return;
+                  if (isInterruptedRef.current) {
+                    console.warn('[Gemini Debug] Aborted sending tool response due to interruption.');
+                    return;
+                  }
+                  try {
+                    console.log('[Tool Debug] Sending tool responses:', responses.length);
+                    sessionRef.sendToolResponse({ functionResponses: responses });
+                  } catch (sendErr: any) {
+                    console.error('[Tool Debug] Error sending tool response:', sendErr);
+                  }
+                }, 0);
+              }
+
+            } catch (err) {
+              console.error('[Gemini Debug] onmessage error:', err);
             }
           },
-          onerror: (e: ErrorEvent) => updateError(e.message),
+          onerror: (e: ErrorEvent) => {
+            console.error('[Gemini Debug] Session error:', e.message);
+            updateError(e.message);
+          },
           onclose: (e: CloseEvent) => {
             sessionOpen.current = false;
-            console.log('Session closed.');
+            session.current = null;
+            console.warn('[Gemini Debug] Session closed — code:', e.code, 'reason:', e.reason || '(none)', 'wasClean:', e.wasClean);
             updateStatus('Session closed.');
             if (isRecordingRef.current) stopConversation();
           },
@@ -1420,6 +1490,11 @@ Tutor (Audio): "Since the denominators are the same, we simply add the top numbe
         config: {
           systemInstruction: enhancedPrompt,
           responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Orus' } },
+          },
+          // Keep session open for multi-turn; without this the server may close after one turn
+          contextWindowCompression: { slidingWindow: {} },
           tools: [{
             functionDeclarations: [
               {
@@ -1465,21 +1540,22 @@ Tutor (Audio): "Since the denominators are the same, we simply add the top numbe
       updateError('You have reached your session limit. Please upgrade.');
       return;
     }
+    if (!session.current || !sessionOpen.current) {
+      updateError('Session not ready. Please wait.');
+      return;
+    }
 
+    isStartingConversationRef.current = true;
     // Tracking
     if (!hasTrackedSession) {
       const { trackFeatureUsageAction } = require('@/app/(dashboard)/usage-actions');
       const res = await trackFeatureUsageAction('voiceTutor');
       if (!res.success) {
+        isStartingConversationRef.current = false;
         updateError(`❌ ${res.error || "Failed to start session. Limit reached."} `);
         return;
       }
       setHasTrackedSession(true);
-    }
-
-    if (!session.current || !sessionOpen.current) {
-      updateError('Session not ready. Please wait.');
-      return;
     }
 
     audioContext.current?.resume();
@@ -1497,9 +1573,16 @@ Tutor (Audio): "Since the denominators are the same, we simply add the top numbe
       updateStatus('Microphone access granted.');
 
       if (!audioContext.current) {
-        updateError('Audio context not initialized');
-        return;
+        //updateError('Audio context not initialized');
+        audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)({ 
+          sampleRate: 16000 
+        });
+        //return;
       }
+
+      // Detect the ACTUAL sample rate the browser gave us (e.g., 48000 or 44100)
+      const currentSampleRate = audioContext.current.sampleRate;
+      console.log(`[Gemini Debug] Audio Sample Rate: ${currentSampleRate}Hz`);
 
       mixedStreamDestinationRef.current = audioContext.current.createMediaStreamDestination();
 
@@ -1556,9 +1639,14 @@ Tutor (Audio): "Since the denominators are the same, we simply add the top numbe
       muteNode.connect(audioContext.current.destination);
 
       scriptProcessorNode.current.onaudioprocess = (event) => {
-        if (isRecordingRef.current && session.current && sessionOpen.current) {
+        if (!isRecordingRef.current || !session.current || !sessionOpen.current) return;
+        try {
           const pcmData = event.inputBuffer.getChannelData(0);
-          session.current?.sendRealtimeInput({ media: createBlob(pcmData) });
+          session.current.sendRealtimeInput({ media: createBlob(pcmData) });
+        } catch (err: any) {
+          // Socket may be CLOSING/CLOSED; avoid spamming and don't let this cascade
+          if (err?.message?.includes('CLOSING') || err?.message?.includes('CLOSED')) return;
+          console.warn('[Gemini Debug] Audio processing error:', err);
         }
       };
 
@@ -1567,6 +1655,8 @@ Tutor (Audio): "Since the denominators are the same, we simply add the top numbe
       updateStatus('🔴 Live Conversation... Speak now!');
     } catch (err: any) {
       updateError(`Microphone error: ${err.message}.`);
+    } finally {
+      isStartingConversationRef.current = false;
     }
   }, [isRecording, onConversationEnd]);
 
@@ -1585,8 +1675,10 @@ Tutor (Audio): "Since the denominators are the same, we simply add the top numbe
   const handleForceUpdate = useCallback(() => {
     if (session.current && sessionOpen.current) {
       updateStatus('Syncing board...');
-      // Nudge the AI to update the board using standard text injection
-      session.current.send([{ text: "SYSTEM_COMMAND: Update the blackboard with the current math or topic summary immediately." }], true);
+      session.current.sendClientContent({
+        turns: "SYSTEM_COMMAND: Update the blackboard with the current math or topic summary immediately.",
+        turnComplete: true,
+      });
     } else {
       updateError('Start session first to sync.');
     }
@@ -1720,13 +1812,15 @@ Tutor (Audio): "Since the denominators are the same, we simply add the top numbe
     };
   }, []);
 
+  // Only init when we have a prompt; do NOT close session in cleanup — that was ending calls abruptly
+  // (e.g. effect re-run or Strict Mode). Session is closed on unmount by the canvas effect and in
+  // stopConversation / at the start of initSession when reconnecting.
   useEffect(() => {
-    if (prompt) {
-      initSession();
-    }
-    return () => {
-      session.current?.close();
-    }
+    if (!prompt) return;
+    // Don’t reconnect while user is in a call — avoid tearing down session mid-conversation
+    if (isRecordingRef.current || isStartingConversationRef.current) return;
+    if (session.current && sessionOpen.current) return;
+    initSession();
   }, [prompt, initSession]);
 
   return (
