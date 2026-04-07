@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db/drizzle';
 import { topics, flashcards, passedPaperQuestions, flashcardTests, subjects, topicResources } from '@/lib/db/schema';
-import { eq, and, or, isNull, desc, sql } from 'drizzle-orm';
+import { eq, and, or, isNull, desc, sql, ilike  } from 'drizzle-orm';
 import { getUserWithTeam } from '@/lib/db/queries';
 import { getUser } from '@/lib/db/queries';
 import { revalidatePath } from 'next/cache';
@@ -11,8 +11,125 @@ import { getSubjectContext } from '@/lib/ai/context-manager';
 import mammoth from 'mammoth';
 import { embedText } from '@/lib/ai/embedding';
 import { chunkText } from '@/lib/ai/chunking';
+import { actualPastPaperQuestions } from '@/lib/db/schema';
+
+
 
 // --- Score Tracking Actions ---
+
+export async function getActualPastPapers(subject: string, level: string, topicName?: string) {
+    return await db.select()
+        .from(actualPastPaperQuestions)
+        .where(
+            and(
+                eq(actualPastPaperQuestions.subject, subject),
+                eq(actualPastPaperQuestions.level, level),
+                // Flexible filtering: matches topicTag or name partially
+                topicName && topicName !== "" ? or(
+                    eq(actualPastPaperQuestions.topicTag, topicName),
+                    ilike(actualPastPaperQuestions.topicTag, `%${topicName}%`),
+                    sql`${topicName}::text ILIKE '%' || ${actualPastPaperQuestions.topicTag}::text || '%'`
+                ) : undefined
+            )
+        )
+        .orderBy(actualPastPaperQuestions.year, actualPastPaperQuestions.questionNumber);
+}
+
+// export async function searchOfficialPastPapers(subject: string, level: string, query: string) {
+//     // Search by year if the user mentions a number, otherwise search topic tags/descriptions
+//     const isYearQuery = /\d{4}/.test(query);
+//     const yearMatch = query.match(/\d{4}/);
+//     const year = yearMatch ? parseInt(yearMatch[0]) : null;
+
+//     return await db.select()
+//         .from(actualPastPaperQuestions)
+//         .where(
+//             and(
+//                 eq(actualPastPaperQuestions.subject, subject),
+//                 eq(actualPastPaperQuestions.level, level),
+//                 or(
+//                     year ? eq(actualPastPaperQuestions.year, year) : undefined,
+//                     ilike(actualPastPaperQuestions.topicTag, `%${query}%`),
+//                     ilike(actualPastPaperQuestions.topicDescription, `%${query}%`)
+//                 )
+//             )
+//         )
+//         .limit(10); // Bring in the top 5 most relevant official questions
+// }
+
+export async function searchOfficialPastPapers(subject: string, level: string, query: string) {
+    try {
+        // 1. IMPORTANT FIX: Pass 'true' to indicate this is a SEARCH QUERY
+        // This tells Gemini to use TaskType.RETRIEVAL_QUERY for better matching logic.
+        const queryEmbedding = await embedText(query, true); 
+        
+        const queryVector = `[${queryEmbedding.join(',')}]`;
+
+        const yearMatch = query.match(/\d{4}/);
+        const year = yearMatch ? parseInt(yearMatch[0]) : null;
+
+        const results = await db.select({
+            id: actualPastPaperQuestions.id,
+            year: actualPastPaperQuestions.year,
+            section: actualPastPaperQuestions.section,
+            questionNumber: actualPastPaperQuestions.questionNumber,
+            marks: actualPastPaperQuestions.marks,
+            markingType: actualPastPaperQuestions.markingType,
+            topicTag: actualPastPaperQuestions.topicTag,
+            topicDescription: actualPastPaperQuestions.topicDescription,
+            questionHtml: actualPastPaperQuestions.questionHtml,
+            answerHtml: actualPastPaperQuestions.answerHtml,
+            workingHtml: actualPastPaperQuestions.workingHtml,
+            similarity: sql<number>`1 - (${actualPastPaperQuestions.questionEmbedding} <=> ${queryVector}::vector)`
+        })
+        .from(actualPastPaperQuestions)
+        .where(
+            and(
+                eq(actualPastPaperQuestions.subject, subject),
+                eq(actualPastPaperQuestions.level, level),
+                year ? eq(actualPastPaperQuestions.year, year) : undefined
+            )
+        )
+        // 2. SEMANTIC ORDERING
+        // We order by distance. Closer distance = higher up in the list.
+        .orderBy(sql`${actualPastPaperQuestions.questionEmbedding} <=> ${queryVector}::vector`)
+        .limit(15); // Increased slightly to give the AI tutor more context options
+
+        return results;
+
+    } catch (error) {
+        console.error("Vector Search Error:", error);
+        // Basic fallback
+        return await db.select().from(actualPastPaperQuestions)
+            .where(and(
+                eq(actualPastPaperQuestions.subject, subject), 
+                eq(actualPastPaperQuestions.level, level)
+            ))
+            .limit(5);
+    }
+}
+
+// app/(dashboard)/actions.ts
+
+export async function getIngestorMetadata() {
+    try {
+        const allSubjects = await db.select().from(subjects);
+        
+        // Get unique subject names
+        const uniqueSubjects = Array.from(new Set(allSubjects.map(s => s.name))).sort();
+        
+        // Get unique levels (SEA, CSEC, CAPE, etc)
+        const uniqueLevels = Array.from(new Set(allSubjects.map(s => s.educationLevel))).sort();
+
+        return {
+            subjects: uniqueSubjects,
+            levels: uniqueLevels
+        };
+    } catch (error) {
+        console.error("Failed to fetch ingestor metadata:", error);
+        return { subjects: [], levels: [] };
+    }
+}
 
 export async function saveFlashcardTestResult(data: { topicId: number; score: number; totalQuestions: number }) {
     const user = await getUser();

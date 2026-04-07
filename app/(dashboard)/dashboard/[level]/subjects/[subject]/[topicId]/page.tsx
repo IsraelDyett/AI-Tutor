@@ -5,7 +5,8 @@ import {
     getPastPaperQuestions,
     getBestFlashcardScore,
     getSubjectContextText,
-    getAllSubjectResources
+    getAllSubjectResources,
+    getActualPastPapers,
 } from '@/app/(dashboard)/actions';
 import { getUser, getUserWithTeam } from '@/lib/db/queries';
 import TopicView from '@/components/topic-view';
@@ -23,6 +24,7 @@ export default async function TopicPage({ params }: { params: Promise<{ level: s
     let isAllTopics = false;
     let topic: any = null;
     let canEdit = false;
+    let actualQuestions: Awaited<ReturnType<typeof getActualPastPapers>> = [];
 
     const user = await getUser();
     const userWithTeam = user ? await getUserWithTeam(user.id) : null;
@@ -34,6 +36,9 @@ export default async function TopicPage({ params }: { params: Promise<{ level: s
         questions = resources.questions;
         topicName = `All ${decodedSubject} Topics`;
         isAllTopics = true;
+        //actualQuestions = [];
+        actualQuestions = await getActualPastPapers(decodedSubject, upperLevel); 
+
     } else {
         const id = parseInt(topicId);
         if (isNaN(id)) return notFound();
@@ -50,6 +55,8 @@ export default async function TopicPage({ params }: { params: Promise<{ level: s
         if (topic && userTeamId !== null && topic.teamId === userTeamId) {
             canEdit = true;
         }
+
+        actualQuestions = await getActualPastPapers(decodedSubject, upperLevel, topicName);
     }
 
     const backgroundContext = await getSubjectContextText(decodedSubject, level);
@@ -105,6 +112,7 @@ export default async function TopicPage({ params }: { params: Promise<{ level: s
                 lessonPlan={(topic as any)?.lessonPlan || ""}
                 initialBestScore={initialBestScore}
                 canEdit={canEdit}
+                actualQuestions={actualQuestions} // Add this
             />
         </main>
     );

@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { searchOfficialPastPapers } from "@/app/(dashboard)/actions";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -20,6 +21,23 @@ export async function POST(req: Request) {
         // --- Vector Similarity Search (RAG) ---
         let ragContextText = "";
         const lastMessage = messages[messages.length - 1];
+        let officialPaperContext = "";
+        if (subject && level && lastMessage.content) {
+            try {
+                const officialResults = await searchOfficialPastPapers(subject, level, lastMessage.content);
+                if (officialResults && officialResults.length > 0) {
+                    officialPaperContext = "\n\n--- RELEVANT OFFICIAL PAST PAPER RECORDS ---\n" +
+                        officialResults.map(p => (
+                            `[ID: ${p.id} | Year: ${p.year} | Q#: ${p.questionNumber} | Topic: ${p.topicTag}]\n` +
+                            `Question (HTML): ${p.questionHtml}\n` +
+                            `Model Answer (HTML): ${p.answerHtml}\n` +
+                            `Explanation/Working: ${p.workingHtml || "N/A"}\n`
+                        )).join("\n---\n");
+                }
+            } catch (err) {
+                console.error("Official Paper Search Error:", err);
+            }
+        }
 
         if (topicId) {
             try {
@@ -109,7 +127,19 @@ export async function POST(req: Request) {
         const modelName = "gemini-2.5-flash";
         const model = genAI.getGenerativeModel({
             model: modelName,
-            systemInstruction: (levelSpecificInstructions || process.env.TUTOR_SYSTEM_INSTRUCTION) + "\n\n" + context + "\n\n" + backgroundContextText + ragContextText
+            systemInstruction: `
+                ${levelSpecificInstructions || process.env.TUTOR_SYSTEM_INSTRUCTION}
+                
+                ${context} 
+                ${backgroundContextText} 
+                ${ragContextText} 
+                ${officialPaperContext}
+
+                CRITICAL INSTRUCTION:
+                If the user asks for a past paper question or an example from a specific year, check the 'OFFICIAL PAST PAPER RECORDS' section above. 
+                If the records are present, output them using the exact HTML provided. 
+                If they are not present, do your best to explain the concepts using your internal knowledge.
+            `
         });
 
         const previousMessages = messages.slice(0, -1);

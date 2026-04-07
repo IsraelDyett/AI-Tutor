@@ -139,8 +139,8 @@ export default function TextTutorChat({ level, contextPrompt, topicName, subject
                 body: JSON.stringify({
                     messages: apiMessages,
                     context: contextPrompt,
-                    subject,
-                    level,
+                    subject: subject,
+                    level: level.toUpperCase(),
                     topicId
                 })
             });

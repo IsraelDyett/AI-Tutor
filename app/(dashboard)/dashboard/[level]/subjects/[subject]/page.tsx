@@ -33,7 +33,7 @@ export default async function SubjectPage({ params }: { params: Promise<{ level:
                     <div className="flex flex-wrap gap-2 sm:shrink-0">
                         <Button variant="outline" asChild className="border-orange-500 text-orange-600 hover:bg-orange-50 flex-1 sm:flex-none">
                             <Link href={`/dashboard/${level}/subjects/${subject}/all`}>
-                                <Brain className="mr-2 h-4 w-4" /> All Cards / General Tutor
+                                <Brain className="mr-2 h-4 w-4" /> All PassPapers & Tutors
                             </Link>
                         </Button>
                         <div className="flex-1 sm:flex-none">

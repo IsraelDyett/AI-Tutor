@@ -569,6 +569,53 @@ export const flashcardTestsRelations = relations(flashcardTests, ({ one }) => ({
   }),
 }));
 
+export const actualPastPaperQuestions = pgTable('actual_past_paper_questions', {
+  id: serial('id').primaryKey(),
+ 
+  // Optional link to a team-created topic (for context)
+  topicId: integer('topic_id')
+    .references(() => topics.id, { onDelete: 'set null' }),
+ 
+  // Curriculum metadata
+  subject:        varchar('subject', { length: 100 }).notNull(),       // e.g. "Mathematics"
+  level:          varchar('level',   { length: 10  }).notNull(),       // SEA | CSEC | CAPE
+  year:           integer('year').notNull(),                           // e.g. 2023
+  section:        integer('section'),                        // 1 | 2 | 3
+  questionNumber: integer('question_number'),
+  marks:          integer('marks'),
+  markingType:    varchar('marking_type', { length: 5 }).default('K'), // K | A | R
+ topicDescription: text('topic_description'),
+  // Topic classification for filtering (matches the name on topics table)
+  topicTag: varchar('topic_tag', { length: 100 }),
+ 
+  // Rich HTML content — fractions, tables, etc. stored as HTML strings
+  questionHtml: text('question_html'), 
+  answerHtml:   text('answer_html'),
+  workingHtml:  text('working_html'),
+
+  // pgvector embedding for semantic search (768 dims, matches embedText model)
+  questionEmbedding: vector('question_embedding'),
+
+  // Optional URL to an image for diagram questions
+  imageUrl: text('image_url'),
+ 
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+ 
+export const actualPastPaperQuestionsRelations = relations(
+  actualPastPaperQuestions,
+  ({ one }) => ({
+    topic: one(topics, {
+      fields: [actualPastPaperQuestions.topicId],
+      references: [topics.id],
+    }),
+  })
+);
+
+export type ActualPastPaperQuestion    = typeof actualPastPaperQuestions.$inferSelect;
+export type NewActualPastPaperQuestion = typeof actualPastPaperQuestions.$inferInsert;
+ 
+
 export const topicResources = pgTable('topic_resources', {
   id: serial('id').primaryKey(),
   topicId: integer('topic_id')
