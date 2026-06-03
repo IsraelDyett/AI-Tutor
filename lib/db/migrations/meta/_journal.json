@@ -141,6 +141,13 @@
       "when": 1775421321768,
       "tag": "0019_silly_sandman",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1780368411258,
+      "tag": "0020_nice_shotgun",
+      "breakpoints": true
     }
   ]
 }

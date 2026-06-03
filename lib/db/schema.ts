@@ -1,3 +1,7 @@
+//Going forward, use npm run db:migrate after db:generate 
+//so __drizzle_migrations stays in sync. Avoid mixing drizzle-kit 
+// push with migrate on the same database without recording migrations.
+
 import {
   pgTable,
   serial,
@@ -568,6 +572,27 @@ export const flashcardTestsRelations = relations(flashcardTests, ({ one }) => ({
     references: [topics.id],
   }),
 }));
+
+export const lessonProgress = pgTable('lesson_progress', {
+  id: serial('id').primaryKey(),
+  // Which user this belongs to
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  // Which topic this lesson was for
+  topicId: integer('topic_id').notNull(),
+  // The JSON blob of progress data
+  progress: jsonb('progress').notNull().$type<{
+    topicsIntroduced: string[];
+    topicsConfirmed: string[];
+    currentTopic: string;
+    studentMisconceptions: string[];
+    lastSummary: string;
+    sessionCount: number;
+  }>(),
+  // When this was last updated
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
 
 export const actualPastPaperQuestions = pgTable('actual_past_paper_questions', {
   id: serial('id').primaryKey(),

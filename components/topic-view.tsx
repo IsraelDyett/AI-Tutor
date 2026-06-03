@@ -1,11 +1,15 @@
 //components\topic-view.tsx
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { 
     Brain, FileText, MessageCircle, Mic, ArrowLeft, 
     RefreshCw, Trophy, ChevronDown, ChevronUp, Eye, EyeOff , Send, Loader2, X 
 } from 'lucide-react';
+
+import { saveLessonProgress, clearLessonProgress } from '@/app/(dashboard)/lesson-progress-actions';
+import type { LessonProgress } from '@/components/live-simulation-component';
+
 
 function ActualQuestionItem({ q }: { q: any }) {
     const [showAnswer, setShowAnswer] = useState(false);
@@ -214,6 +218,7 @@ interface TopicViewProps {
     lessonPlan?: string;
     initialBestScore?: { score: number; totalQuestions: number } | null;
     canEdit: boolean;
+    initialLessonProgress?: LessonProgress | null;
 }
 
 export default function TopicView({
@@ -230,6 +235,7 @@ export default function TopicView({
     lessonPlan = "",
     initialBestScore = null,
     canEdit = false,
+    initialLessonProgress = null,
 }: TopicViewProps) {
     const [activeTab, setActiveTab] = useState('voice');
     const [isTestOpen, setIsTestOpen] = useState(false);
@@ -238,6 +244,17 @@ export default function TopicView({
     const [expandedYears, setExpandedYears] = useState<Record<number, boolean>>({});
     const router = useRouter();
 
+    const handleLessonProgressUpdate = useCallback(async (progress: LessonProgress) => {
+        // Save to DB (Fix 3 — persists across page refreshes)
+        if (topicId !== 'all') {
+          const numericId = parseInt(topicId);
+          if (!isNaN(numericId)) {
+            await saveLessonProgress(numericId, progress);
+          }
+        }
+      }, [topicId]);
+
+    
     const contextPrompt = useMemo(() => {
         let context = `\n\n--- Background Subject Context (Syllabus/Manual) ---\n${backgroundContext}\n\n`;
         context += `\n\nHere is the Context Data (Use this to help the student, refer to specific cards or questions if relevant):\n`;
@@ -375,6 +392,8 @@ export default function TopicView({
                                     level={level}
                                     onConversationEnd={(blob) => console.log('Session ended', blob)}
                                     isEnding={false}
+                                    onLessonProgressUpdate={handleLessonProgressUpdate}   
+                                    initialLessonProgress={initialLessonProgress} 
                                 />
                             </div>
                         </CardContent>
