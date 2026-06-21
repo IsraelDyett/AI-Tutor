@@ -1,3 +1,4 @@
+//app\(login)\actions.ts
 'use server';
 
 import { z } from 'zod';
@@ -108,7 +109,7 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
     return createCheckoutSession({ team: foundTeam, priceId, baseUrl });
   }
 
-  redirect('/dashboard');
+  redirect('/dashboard/team');
 });
 
 const signUpSchema = z.object({

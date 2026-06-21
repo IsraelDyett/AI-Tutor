@@ -1,3 +1,4 @@
+//lib\auth\session.ts
 import { compare, hash } from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';

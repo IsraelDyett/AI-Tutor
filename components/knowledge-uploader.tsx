@@ -1,3 +1,4 @@
+//components\knowledge-uploader.tsx
 'use client';
 
 import { useState } from 'react';

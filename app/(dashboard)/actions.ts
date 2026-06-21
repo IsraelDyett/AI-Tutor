@@ -1,3 +1,4 @@
+//app\(dashboard)\actions.ts
 'use server';
 
 import { db } from '@/lib/db/drizzle';
@@ -11,11 +12,66 @@ import { getSubjectContext } from '@/lib/ai/context-manager';
 import mammoth from 'mammoth';
 import { embedText } from '@/lib/ai/embedding';
 import { chunkText } from '@/lib/ai/chunking';
-import { actualPastPaperQuestions } from '@/lib/db/schema';
+import { actualPastPaperQuestions,  pastPaperAttempts, studySessions } from '@/lib/db/schema';
+import { 
+    preloadVoiceContext as _preloadVoiceContext, 
+    searchVoiceKnowledge as _searchVoiceKnowledge 
+} from '@/lib/ai/voice-rag';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+export async function preloadVoiceContext(...args: Parameters<typeof _preloadVoiceContext>) {
+    return await _preloadVoiceContext(...args);
+}
+
+export async function searchVoiceKnowledge(...args: Parameters<typeof _searchVoiceKnowledge>) {
+    return await _searchVoiceKnowledge(...args);
+}
 
 
+export async function savePastPaperAttemptAction(data: {
+    topicId: number;
+    paperType: 'actual' | 'generated';
+    reference: string;
+    correctQuestions: number;
+    totalQuestions: number;
+}) {
+    const user = await getUser();
+    if (!user) return { error: 'Unauthorized' };
 
-// --- Score Tracking Actions ---
+    const scorePercentage = Math.round((data.correctQuestions / data.totalQuestions) * 100);
+
+    try {
+        await db.insert(pastPaperAttempts).values({
+            userId: user.id,
+            topicId: data.topicId === -1 ? null : data.topicId,
+            paperType: data.paperType,
+            reference: data.reference,
+            correctQuestions: data.correctQuestions,
+            totalQuestions: data.totalQuestions,
+            scorePercentage: scorePercentage
+        });
+        revalidatePath('/dashboard/team/performance');
+        return { success: true };
+    } catch (e) {
+        console.error(e);
+        return { error: 'Failed to save attempt' };
+    }
+}
+
+// Update study session with insights (Call this at the end of text/voice tutor sessions)
+export async function updateStudySessionInsightsAction(sessionId: number, data: { understandingScore: number, feedbackSummary: string }) {
+    try {
+        await db.update(studySessions)
+            .set({ 
+                understandingScore: data.understandingScore,
+                feedbackSummary: data.feedbackSummary
+            })
+            .where(eq(studySessions.id, sessionId));
+        return { success: true };
+    } catch (e) {
+        return { error: 'Failed to update insights' };
+    }
+}
 
 export async function getActualPastPapers(subject: string, level: string, topicName?: string) {
     return await db.select()
@@ -59,8 +115,6 @@ export async function getActualPastPapers(subject: string, level: string, topicN
 
 export async function searchOfficialPastPapers(subject: string, level: string, query: string) {
     try {
-        // 1. IMPORTANT FIX: Pass 'true' to indicate this is a SEARCH QUERY
-        // This tells Gemini to use TaskType.RETRIEVAL_QUERY for better matching logic.
         const queryEmbedding = await embedText(query, true); 
         
         const queryVector = `[${queryEmbedding.join(',')}]`;
@@ -393,9 +447,11 @@ const pastPaperSchema = z.object({
     year: z.string().min(1),
     question: z.string().min(1),
     answer: z.string().min(1),
+    explanation: z.string().optional(),
+    worksheetName: z.string().optional(),
 });
 
-export async function savePastPaperQuestion(data: { topicId: number; year: string; question: string; answer: string }) {
+export async function savePastPaperQuestion(data: { topicId: number; year: string; question: string; answer: string; explanation?: string; worksheetName?: string; }) {
     const user = await getUser();
     if (!user) return { error: 'Unauthorized' };
 
@@ -407,7 +463,8 @@ export async function savePastPaperQuestion(data: { topicId: number; year: strin
             topicId: data.topicId,
             year: data.year,
             question: data.question,
-            answerMarkdown: data.answer, // Mapping 'answer' to 'answerMarkdown' based on schema
+            answerMarkdown: data.answer,
+            explanationMarkdown: data.explanation 
         });
 
         // RAG Ingestion
@@ -603,4 +660,256 @@ export async function updateTopicContext(topicId: number, data: { systemInstruct
         console.error('Update Topic Context Error:', error);
         return { error: 'Failed to update topic context' };
     }
+}
+
+
+export async function evaluateAnswerWithAIAction(data: {
+    question: string;
+    userAnswer: string;
+    modelAnswer: string;
+  }) {
+    const user = await getUser();
+    if (!user) return { error: 'Unauthorized' };
+  
+    const apiKey = process.env.NEXT_PUBLIC_API_KEY || process.env.GOOGLE_API_KEY || "";
+    if (!apiKey) {
+      return { error: 'Missing Gemini API Key Configuration' };
+    }
+  
+    const genAI = new GoogleGenerativeAI(apiKey);
+    
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json"
+      }
+    });
+  
+    // Strip HTML tags for clean prompt injection
+    const cleanQuestion = data.question.replace(/<[^>]*>?/gm, '').trim();
+    const cleanModelAnswer = data.modelAnswer.replace(/<[^>]*>?/gm, '').trim();
+  
+    const prompt = `
+    You are an expert curriculum examiner. Grade the student's answer based strictly on the question and the model answer provided.
+    The student's answer does not need to be a word-for-word match with the model answer, but must be conceptually correct.
+    
+    If the student's answer captures the essential core concept/facts of the model answer, mark it as isCorrect: true.
+    If it is partially correct or misses the core points completely, mark it as isCorrect: false.
+  
+    Provide a JSON object containing:
+    1. "isCorrect": boolean
+    2. "score": number (an integer from 0 to 100, representing the degree of semantic/conceptual matching)
+    3. "feedback": string (one short sentence, maximum 12 words, in encouraging standard english, directly validating their logic or gently pointing out the core missing keyword/concept)
+  
+    Question: "${cleanQuestion}"
+    Model Answer: "${cleanModelAnswer}"
+    Student's Answer: "${data.userAnswer.trim()}"
+    `;
+  
+    try {
+      const result = await model.generateContent(prompt);
+      let textResponse = result.response.text();
+      
+      // Safety check: Clean up potential markdown formatting codeblocks
+      textResponse = textResponse.replace(/```json\s*|```/g, '').trim();
+      
+      const parsed = JSON.parse(textResponse);
+  
+      return {
+        success: true,
+        isCorrect: !!parsed.isCorrect,
+        score: Math.min(Math.max(Number(parsed.score || 0), 0), 100),
+        feedback: parsed.feedback || ""
+      };
+    } catch (error) {
+      console.error("AI Evaluation error:", error);
+      return { error: "Failed to semantically evaluate answer" };
+    }
+  }
+// app/(dashboard)/actions.ts — ADD THESE TWO FUNCTIONS AT THE BOTTOM
+
+
+/**
+ * Saves a completed voice tutor session to the database.
+ * Called from the client when the voice session ends.
+ * 
+ * Score derivation:
+ *   - If lastSummary exists: quick Gemini call to extract score + feedback
+ *   - Otherwise: derive score from topicsConfirmed / topicsIntroduced ratio
+ */
+export async function saveVoiceSessionAction(data: {
+  topicId: number | null;           // null if -1 (all topics mode)
+  durationSeconds: number;
+  topicsIntroduced: string[];
+  topicsConfirmed: string[];
+  studentMisconceptions: string[];
+  lastSummary: string;
+}) {
+  const user = await getUser();
+  if (!user) return { error: 'Unauthorized' };
+
+  let understandingScore: number | null = null;
+  let feedbackSummary: string | null = null;
+
+  try {
+    if (data.lastSummary && data.lastSummary.trim().length > 20) {
+      // We have a real summary — ask Gemini to extract a score from it
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY || process.env.GOOGLE_API_KEY || '';
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      const result = await model.generateContent(`
+You are an educational assessment engine. Based on the following lesson summary, output ONLY a valid JSON object — no markdown, no explanation.
+
+Lesson Summary: "${data.lastSummary}"
+Topics Introduced: ${data.topicsIntroduced.join(', ') || 'None'}
+Topics Student Confirmed Understanding: ${data.topicsConfirmed.join(', ') || 'None'}
+Student Misconceptions Noted: ${data.studentMisconceptions.join(', ') || 'None'}
+
+Return this exact structure:
+{"score": <integer 0-100>, "feedback": "<2-3 sentence plain English feedback summary for the student>"}
+
+Score rubric:
+- 90-100: Student confirmed all topics, no misconceptions
+- 70-89: Student confirmed most topics, minor misconceptions
+- 50-69: Student confirmed some topics, notable misconceptions  
+- 30-49: Few topics confirmed, significant misconceptions
+- 0-29: Session too short or no confirmed understanding
+      `);
+
+      const text = result.response.text().replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(text);
+      understandingScore = Math.min(100, Math.max(0, Number(parsed.score) || 0));
+      feedbackSummary = String(parsed.feedback || '');
+    } else {
+      // Fallback: derive score from confirmed/introduced ratio
+      const introduced = data.topicsIntroduced.length;
+      const confirmed = data.topicsConfirmed.length;
+
+      if (introduced === 0) {
+        understandingScore = data.durationSeconds > 60 ? 40 : 20;
+        feedbackSummary = 'Session completed but no specific topics were tracked. Consider using the voice tutor for a full lesson session.';
+      } else {
+        const ratio = confirmed / introduced;
+        understandingScore = Math.round(ratio * 100);
+        // Penalise for misconceptions
+        const penalty = Math.min(20, data.studentMisconceptions.length * 5);
+        understandingScore = Math.max(0, understandingScore - penalty);
+
+        feedbackSummary = confirmed === introduced
+          ? `Great session! You confirmed understanding of all ${confirmed} topic(s) covered.`
+          : `You confirmed ${confirmed} of ${introduced} topic(s). Review ${data.topicsIntroduced.filter(t => !data.topicsConfirmed.includes(t)).slice(0, 2).join(', ')} in your next session.`;
+      }
+    }
+  } catch (err) {
+    console.error('[saveVoiceSession] Score derivation failed:', err);
+    // Non-fatal — save with nulls rather than failing entirely
+  }
+
+  try {
+    await db.insert(studySessions).values({
+      userId: user.id,
+      topicId: data.topicId ?? null,
+      durationSeconds: data.durationSeconds,
+      understandingScore,
+      feedbackSummary,
+      startedAt: new Date(Date.now() - (data.durationSeconds * 1000)),
+      endedAt: new Date(),
+    });
+
+    revalidatePath('/dashboard/team/performance');
+    return { success: true, score: understandingScore, feedback: feedbackSummary };
+  } catch (err) {
+    console.error('[saveVoiceSession] DB insert failed:', err);
+    return { error: 'Failed to save session' };
+  }
+}
+
+/**
+ * Saves a completed text tutor session to the database.
+ * Called from the client when the user ends the session (clicks Download PDF).
+ * Sends the conversation to Gemini for analysis before saving.
+ */
+export async function saveTextSessionAction(data: {
+  topicId: string;                    // string because it comes from URL params ('all' or a number)
+  topicName: string;
+  subject: string;
+  messages: { role: string; content: string }[];
+}) {
+  const user = await getUser();
+  if (!user) return { error: 'Unauthorized' };
+
+  // Resolve topicId
+  const numericTopicId = data.topicId === 'all' || isNaN(parseInt(data.topicId))
+    ? null
+    : parseInt(data.topicId);
+
+  // Filter to meaningful messages (skip the initial greeting)
+  const meaningfulMessages = data.messages.filter(m => m.content.trim().length > 10);
+  const durationEstimateSeconds = Math.max(60, meaningfulMessages.length * 30);
+
+  let understandingScore: number | null = null;
+  let feedbackSummary: string | null = null;
+
+  if (meaningfulMessages.length >= 3) {
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY || process.env.GOOGLE_API_KEY || '';
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      // Build a compact transcript (cap at ~3000 chars to avoid token bloat)
+      const transcript = meaningfulMessages
+        .map(m => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.content}`)
+        .join('\n')
+        .slice(0, 3000);
+
+      const result = await model.generateContent(`
+You are an educational assessment engine. Analyse this tutoring conversation and output ONLY a valid JSON object — no markdown, no explanation.
+
+Subject: ${data.subject}
+Topic: ${data.topicName}
+
+Conversation Transcript:
+${transcript}
+
+Return this exact structure:
+{"score": <integer 0-100>, "feedback": "<2-3 sentence plain English feedback for the student>"}
+
+Score rubric:
+- 90-100: Student demonstrated clear understanding, asked good questions, engaged well
+- 70-89: Student engaged well, mostly understood content with minor gaps
+- 50-69: Moderate engagement, some understanding but notable gaps
+- 30-49: Limited engagement or significant misunderstandings
+- 0-29: Very short session or student showed little understanding
+      `);
+
+      const text = result.response.text().replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(text);
+      understandingScore = Math.min(100, Math.max(0, Number(parsed.score) || 0));
+      feedbackSummary = String(parsed.feedback || '');
+    } catch (err) {
+      console.error('[saveTextSession] Gemini analysis failed:', err);
+      // Non-fatal fallback
+      understandingScore = Math.min(100, meaningfulMessages.length * 5);
+      feedbackSummary = 'Session recorded. Keep up the great work studying!';
+    }
+  }
+
+  try {
+    await db.insert(studySessions).values({
+      userId: user.id,
+      topicId: numericTopicId,
+      durationSeconds: durationEstimateSeconds,
+      understandingScore,
+      feedbackSummary,
+      startedAt: new Date(Date.now() - (durationEstimateSeconds * 1000)),
+      endedAt: new Date(),
+    });
+
+    revalidatePath('/dashboard/team/performance');
+    return { success: true, score: understandingScore, feedback: feedbackSummary };
+  } catch (err) {
+    console.error('[saveTextSession] DB insert failed:', err);
+    return { error: 'Failed to save session' };
+  }
 }

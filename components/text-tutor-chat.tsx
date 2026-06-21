@@ -1,3 +1,4 @@
+//components\text-tutor-chat.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -8,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Paperclip, Download, User, Bot, Loader2, FileText, Image as ImageIcon, X } from 'lucide-react';
 import jsPDF from 'jspdf';
+import { saveTextSessionAction } from '@/app/(dashboard)/actions';
+
 
 interface Message {
     role: 'user' | 'model';
@@ -21,9 +24,10 @@ interface TextTutorChatProps {
     topicName: string;
     subject: string;
     topicId: string;
+    saveRef?: React.MutableRefObject<(() => void) | null>;
 }
 
-export default function TextTutorChat({ level, contextPrompt, topicName, subject, topicId }: TextTutorChatProps) {
+export default function TextTutorChat({ level, contextPrompt, topicName, subject, topicId, saveRef }: TextTutorChatProps) {
     const [messages, setMessages] = useState<Message[]>([
         { role: 'model', content: `Hello! I'm your AI Tutor for **${topicName}**. How can I help you today? You can ask me questions or upload images/notes for me to analyze.` }
     ]);
@@ -31,7 +35,12 @@ export default function TextTutorChat({ level, contextPrompt, topicName, subject
     const [isLoading, setIsLoading] = useState(false);
     const [files, setFiles] = useState<{ name: string; type: string; data: string }[]>([]);
     const [hasTrackedSession, setHasTrackedSession] = useState(false);
+    const sessionStartRef = useRef<number>(Date.now());
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    const hasSessionRef = useRef(false);
+    const hasSavedRef = useRef(false); 
+    const messagesRef = useRef(messages);
 
     // Check if session is allowed on mount
     useEffect(() => {
@@ -49,6 +58,37 @@ export default function TextTutorChat({ level, contextPrompt, topicName, subject
         checkLimit();
     }, []);
 
+    useEffect(() => {
+        const saveSession = () => {
+          // Check our save-lock, session activation, and length requirements
+          if (hasSavedRef.current || !hasSessionRef.current || messagesRef.current.length < 3) return;
+      
+          const payload = JSON.stringify({
+            topicId,
+            topicName,
+            subject,
+            messages: messagesRef.current.map(m => ({ role: m.role, content: m.content })),
+          });
+      
+          // Corrected path to point to your physical directory: app/api/sessions/save-text/route.ts
+          navigator.sendBeacon('/api/sessions/save-text', payload);
+          hasSavedRef.current = true; // Lock further saves until new messages are entered
+        };
+
+        if (saveRef) {
+          saveRef.current = saveSession;
+        }
+      
+        window.addEventListener('beforeunload', saveSession);
+        return () => {
+          saveSession();
+          if (saveRef) {
+            saveRef.current = null;
+          }
+          window.removeEventListener('beforeunload', saveSession);
+        };
+      }, [topicId, topicName, subject, saveRef]); // REMOVED messages array from dependencies to prevent duplicate runs on message events
+
     // Auto-scroll to bottom
     useEffect(() => {
         if (scrollRef.current) {
@@ -63,9 +103,6 @@ export default function TextTutorChat({ level, contextPrompt, topicName, subject
                 const reader = new FileReader();
                 reader.onloadend = () => {
                     const base64String = reader.result as string;
-                    // Extract base64 content part if needed by removing prefix "data:image/png;base64,"
-                    // However, for preview we need the prefix. For API we might need to strip it.
-                    // Let's store full string for now and strip in handleSend.
                     setFiles(prev => [...prev, {
                         name: file.name,
                         type: file.type,
@@ -93,6 +130,7 @@ export default function TextTutorChat({ level, contextPrompt, topicName, subject
                 return;
             }
             setHasTrackedSession(true);
+            hasSessionRef.current = true;
         }
         // --- End Usage Tracking ---
 
@@ -110,6 +148,7 @@ export default function TextTutorChat({ level, contextPrompt, topicName, subject
         };
 
         setMessages(prev => [...prev, newUserMessage]);
+        hasSavedRef.current = false;
         setIsLoading(true);
 
         try {
@@ -162,46 +201,58 @@ export default function TextTutorChat({ level, contextPrompt, topicName, subject
         }
     };
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
+        // Save session to DB before generating PDF
+        // Fire-and-forget — don't block the PDF download
+        if (messages.length > 2 && !hasSavedRef.current) {
+            hasSavedRef.current = true; 
+          saveTextSessionAction({
+            topicId,
+            topicName,
+            subject,
+            messages: messages.map(m => ({ role: m.role, content: m.content })),
+          }).catch(err => console.error('[TextTutor] Failed to save session:', err));
+        }
+      
+        // Original PDF generation code (unchanged):
         const doc = new jsPDF();
-
+      
         doc.setFontSize(20);
         doc.text(`Lesson Notes: ${topicName}`, 20, 20);
-
+      
         doc.setFontSize(12);
         doc.text(`Subject: ${subject}`, 20, 30);
         doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 36);
-
+      
         let y = 50;
-
+      
         messages.forEach((msg) => {
-            if (y > 270) {
-                doc.addPage();
-                y = 20;
-            }
-
-            const role = msg.role === 'user' ? 'Student' : 'AI Tutor';
-            doc.setFont("helvetica", "bold");
-            doc.text(`${role}:`, 20, y);
-            y += 6;
-
-            doc.setFont("helvetica", "normal");
-
-            // Clean markdown roughly for PDF
-            const cleanContent = msg.content.replace(/\*\*/g, '').replace(/###/g, '');
-            const lines = doc.splitTextToSize(cleanContent, 170);
-            doc.text(lines, 20, y);
-            y += (lines.length * 6) + 6; // Spacing
-
-            if (msg.files && msg.files.length > 0) {
-                doc.setFont("helvetica", "italic");
-                doc.text(`[Attached ${msg.files.length} file(s)]`, 20, y);
-                y += 10;
-            }
+          if (y > 270) {
+            doc.addPage();
+            y = 20;
+          }
+      
+          const role = msg.role === 'user' ? 'Student' : 'AI Tutor';
+          doc.setFont("helvetica", "bold");
+          doc.text(`${role}:`, 20, y);
+          y += 6;
+      
+          doc.setFont("helvetica", "normal");
+      
+          const cleanContent = msg.content.replace(/\*\*/g, '').replace(/###/g, '');
+          const lines = doc.splitTextToSize(cleanContent, 170);
+          doc.text(lines, 20, y);
+          y += (lines.length * 6) + 6;
+      
+          if (msg.files && msg.files.length > 0) {
+            doc.setFont("helvetica", "italic");
+            doc.text(`[Attached ${msg.files.length} file(s)]`, 20, y);
+            y += 10;
+          }
         });
-
+      
         doc.save(`${subject}-${topicName}-Notes.pdf`);
-    };
+      };
 
     return (
         <Card className="h-[600px] flex flex-col shadow-md border-orange-100">

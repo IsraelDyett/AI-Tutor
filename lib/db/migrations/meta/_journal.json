@@ -148,6 +148,48 @@
       "when": 1780368411258,
       "tag": "0020_nice_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1781014904627,
+      "tag": "0021_old_major_mapleleaf",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1781016261170,
+      "tag": "0022_illegal_gwen_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1781017515032,
+      "tag": "0023_first_scarlet_witch",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1781018496866,
+      "tag": "0024_demonic_thundra",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1781371655201,
+      "tag": "0025_loose_whirlwind",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1781380996808,
+      "tag": "0026_misty_luke_cage",
+      "breakpoints": true
     }
   ]
 }

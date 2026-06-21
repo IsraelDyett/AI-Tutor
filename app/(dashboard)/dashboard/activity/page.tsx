@@ -1,3 +1,4 @@
+//app\(dashboard)\dashboard\activity\page.tsx
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Settings,

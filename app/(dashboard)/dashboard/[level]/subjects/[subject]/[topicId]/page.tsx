@@ -8,10 +8,11 @@ import {
     getAllSubjectResources,
     getActualPastPapers,
   } from '@/app/(dashboard)/actions';
-  import { getLessonProgress } from '@/app/(dashboard)/lesson-progress-actions'; // ← ADD
+  import { getLessonProgress } from '@/app/(dashboard)/lesson-progress-actions';
   import { getUser, getUserWithTeam } from '@/lib/db/queries';
   import TopicView from '@/components/topic-view';
   import { notFound } from 'next/navigation';
+  import { preloadVoiceContext } from '@/app/(dashboard)/actions';
   
   export default async function TopicPage({
     params,
@@ -30,10 +31,16 @@ import {
     let topic: any = null;
     let canEdit = false;
     let actualQuestions: Awaited<ReturnType<typeof getActualPastPapers>> = [];
-  
+    let preloadedVoiceContext = '';
+
     const user = await getUser();
     const userWithTeam = user ? await getUserWithTeam(user.id) : null;
     const userTeamId = userWithTeam?.teamId || null;
+    let Userrole = ""
+    if (user) {
+        Userrole = user.role;
+    }
+    
   
     // ← ADD: Load saved lesson progress for this topic
     const numericTopicId = topicId === 'all' ? -1 : parseInt(topicId);
@@ -60,11 +67,29 @@ import {
       questions = await getPastPaperQuestions(id);
       initialBestScore = await getBestFlashcardScore(id);
   
-      if (topic && userTeamId !== null && topic.teamId === userTeamId) {
+      if (topic && userTeamId !== null && (topic.teamId === userTeamId || userTeamId === 2) && Userrole === "owner") {
         canEdit = true;
       }
   
       actualQuestions = await getActualPastPapers(decodedSubject, upperLevel, topicName);
+    }
+
+    try {
+      const topicIdsToSearch = topicId === 'all'
+        ? [] // will be resolved client-side for all-topics mode
+        : [parseInt(topicId)];
+    
+      const { contextBlock } = await preloadVoiceContext(
+        topicName,
+        topicIdsToSearch,
+        decodedSubject,
+        upperLevel,
+      );
+      preloadedVoiceContext = contextBlock;
+      console.log(`[preloadVoiceContext] Loaded ${contextBlock.length} chars for "${topicName}"`);
+    } catch (err) {
+      console.error('[preloadVoiceContext] Failed:', err);
+      // Non-fatal — session still works, just without pre-loaded context
     }
   
     const backgroundContext = await getSubjectContextText(decodedSubject, level);
@@ -118,7 +143,8 @@ import {
           initialBestScore={initialBestScore}
           canEdit={canEdit}
           actualQuestions={actualQuestions}
-          initialLessonProgress={savedLessonProgress} // ← ADD
+          initialLessonProgress={savedLessonProgress}
+          preloadedVoiceContext={preloadedVoiceContext}
         />
       </main>
     );

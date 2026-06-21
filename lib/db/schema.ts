@@ -1,7 +1,7 @@
 //Going forward, use npm run db:migrate after db:generate 
 //so __drizzle_migrations stays in sync. Avoid mixing drizzle-kit 
 // push with migrate on the same database without recording migrations.
-
+//lib\db\schema.ts
 import {
   pgTable,
   serial,
@@ -58,6 +58,15 @@ export const teams = pgTable('teams', {
   subscriptionStatus: varchar('subscription_status', { length: 20 }),
   salesManual: text('sales_manual'),
   hasUsedOneTimeVoiceTrial: boolean('has_used_one_time_voice_trial').notNull().default(false),
+  activeEducationLevels: text('active_education_levels').array().notNull().default(['SEA']),
+  allowedEducationLevels: text('allowed_education_levels').array().notNull().default(['SEA', 'CSEC', 'CAPE']),
+});
+
+export const educationLevels = pgTable('education_levels', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 50 }).notNull().unique(), // e.g., 'SEA', 'CSEC', 'CAPE'
+  slug: varchar('slug', { length: 50 }).notNull().unique(), // e.g., 'sea', 'csec', 'cape' (used for the URL)
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 export const teamMembers = pgTable('team_members', {
@@ -487,7 +496,9 @@ export const passedPaperQuestions = pgTable('passed_paper_questions', {
     .references(() => topics.id, { onDelete: 'cascade' }),
   question: text('question').notNull(),
   year: varchar('year', { length: 10 }), // e.g. "2023", "2023 Jan"
-  answerMarkdown: text('answer_markdown'), // Generated answer
+  answerMarkdown: text('answer_markdown'), 
+  worksheetName: varchar('worksheet_name', { length: 255 }), // NEW: For generated papers
+  worksheetNumber: integer('worksheet_number'), 
   explanationMarkdown: text('explanation_markdown'), // Generated explanation
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
@@ -498,14 +509,35 @@ export const studySessions = pgTable('study_sessions', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   topicId: integer('topic_id')
-    .notNull() // Can be null if it's a general subject session? For now, enforce topic.
-    .references(() => topics.id, { onDelete: 'cascade' }),
+    .references(() => topics.id, { onDelete: 'set null' }),
   transcript: text('transcript'),
   summary: text('summary'),
   durationSeconds: integer('duration_seconds'),
+  understandingScore: integer('understanding_score'), 
+  feedbackSummary: text('feedback_summary'), 
   startedAt: timestamp('started_at').notNull().defaultNow(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   endedAt: timestamp('ended_at'),
+});
+
+export const pastPaperAttempts = pgTable('past_paper_attempts', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  topicId: integer('topic_id').references(() => topics.id, { onDelete: 'set null' }),
+  paperType: varchar('paper_type', { length: 20 }).notNull(), // 'actual' | 'generated'
+  reference: varchar('reference', { length: 100 }).notNull(), // Year or Worksheet Name
+  scorePercentage: integer('score_percentage').notNull(),
+  correctQuestions: integer('correct_questions').notNull(),
+  totalQuestions: integer('total_questions').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const studentPerformanceSummaries = pgTable('student_performance_summaries', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  summaryMarkdown: text('summary_markdown').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 // --- Relations for Education Tables ---

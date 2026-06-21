@@ -1,0 +1,1 @@
+ALTER TABLE "teams" ADD COLUMN "active_education_level" varchar(10) DEFAULT 'SEA' NOT NULL;

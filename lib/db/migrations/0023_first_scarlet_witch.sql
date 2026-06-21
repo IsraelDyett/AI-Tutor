@@ -1,0 +1,1 @@
+ALTER TABLE "teams" ADD COLUMN "allowed_education_levels" text[] DEFAULT '{"SEA","CSEC","CAPE"}' NOT NULL;

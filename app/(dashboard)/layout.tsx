@@ -28,7 +28,7 @@ interface UserDetails {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-function UserMenu() {
+export function UserMenu() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { data: userDetails } = useSWR<UserDetails>('/api/user/details', fetcher);
   const router = useRouter();

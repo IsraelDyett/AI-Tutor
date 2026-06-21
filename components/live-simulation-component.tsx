@@ -1,3 +1,4 @@
+//components\live-simulation-component.tsx
 'use client';
 /**
  * live-simulation-component.tsx
@@ -22,18 +23,23 @@ import { vs as sphereVS } from '@/lib/shaders/sphere';
 import { Settings, Volume2, Check, LayoutGrid, RefreshCw } from 'lucide-react';
 import { ActiveContextPanel, VisualContext } from './active-context-panel';
 import { v4 as uuidv4 } from 'uuid';
-import { searchResources, getTopics } from '@/app/(dashboard)/actions';
+//import { searchResources, getTopics } from '@/app/(dashboard)/actions';
+import { getTopics, preloadVoiceContext, searchVoiceKnowledge } from '@/app/(dashboard)/actions';
+
 
 export interface LiveAudioComponentProps {
   prompt: string;
   topicId: number;
+  topicIds?: number[]
   subject?: string;
   level?: string;
   onConversationEnd: (audioBlob: Blob) => void;
   isEnding: boolean;
-  // Fix 2 & 3: lesson state passed in from parent
   onLessonProgressUpdate?: (progress: LessonProgress) => void;
   initialLessonProgress?: LessonProgress | null;
+  preloadedContext?: string; 
+  onSessionStart?: () => void;
+
 }
 
 // Fix 2: The lesson progress structure we track outside the AI's memory
@@ -58,12 +64,16 @@ const DEFAULT_LESSON_PROGRESS: LessonProgress = {
 export default function LiveAudioComponent({
   prompt,
   topicId,
+  topicIds,     
   subject,
   level,
   onConversationEnd,
   isEnding,
   onLessonProgressUpdate,
   initialLessonProgress,
+  preloadedContext,
+  onSessionStart,
+
 }: LiveAudioComponentProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [status, setStatus] = useState('Initializing...');
@@ -242,21 +252,25 @@ export default function LiveAudioComponent({
   }, []);
 
   // ─── Build system prompt (with Fix 2 progress injection) ─────────────────
-  const buildSystemPrompt = useCallback((userPrompt: string, progress?: LessonProgress) => {
+  const buildSystemPrompt = useCallback((userPrompt: string, progress?: LessonProgress, preloadedCtx?: string) => {
     const PROMPT_CHAR_LIMIT = 1500;
     const safePrompt = userPrompt.length > PROMPT_CHAR_LIMIT
       ? userPrompt.slice(0, PROMPT_CHAR_LIMIT) +
-        '\n[Full curriculum is available via the consult_knowledge_base tool.]'
+        '\n[Full curriculum is available via the search_knowledge tool.]'
       : userPrompt;
 
     // Fix 2: Inject lesson progress summary so model knows where we are
     const progressSummary = progress ? buildProgressSummary(progress) : '';
 
+    const preloadSection = preloadedCtx
+    ? `\n\n${preloadedCtx}`
+    : '';
+
     return `You are a Visual-First Private Tutor who uses Dual Coding (Visuals + Audio).
 
 GOLDEN RULE: Always call a tool BEFORE speaking.
 - Formulas / worked examples / bullet lists → call update_blackboard first, then speak.
-- Subject facts / syllabus content / past-paper answers → call consult_knowledge_base first, then speak.
+- Subject facts / syllabus content / past-paper answers → call search_knowledge first, then speak.
 - On any "[SYSTEM COMMAND]" message → immediately call update_blackboard with the current topic summary.
 
 AUDIO CUES: Begin sentences with "As I've written on the board…" or "As you can see on the screen…"
@@ -271,7 +285,7 @@ BLACKBOARD FORMATTING (Markdown only — NO LaTeX, NO dollar signs):
 - Headers: #   Bullet lists: -
 
 TUTOR CONTEXT:
-${safePrompt}${progressSummary}`.trim();
+${safePrompt}${preloadSection}${progressSummary}`.trim();
   }, [buildProgressSummary]);
 
   // ─── Init session ─────────────────────────────────────────────────────────
@@ -291,7 +305,7 @@ ${safePrompt}${progressSummary}`.trim();
 
     // Use progressOverride (from handoff) or current ref value
     const currentProgress = progressOverride || lessonProgressRef.current;
-    const systemInstruction = buildSystemPrompt(prompt, currentProgress);
+    const systemInstruction = buildSystemPrompt(prompt, currentProgress, preloadedContext);
 
     try {
       session.current = await client.current.live.connect({
@@ -303,7 +317,8 @@ ${safePrompt}${progressSummary}`.trim();
             console.log('[Session] Opened successfully');
             if (isRecordingRef.current) {
               updateStatus('🔴 Live Conversation… Speak now!');
-            } else {
+            } 
+            else {
               updateStatus('Ready — press record to start.');
             }
           },
@@ -332,7 +347,7 @@ ${safePrompt}${progressSummary}`.trim();
                   toolCallData.functionCalls.map(async (call: any) => {
                     console.log(`[Tool] Handling: ${call.name}`);
 
-                    if (call.name === 'consult_knowledge_base') {
+                    if (call.name === 'search_knowledge') {
                       const { query } = call.args as { query: string };
                       const loadingId = uuidv4();
                       updateStatus(`Searching: "${query}"…`);
@@ -343,21 +358,35 @@ ${safePrompt}${progressSummary}`.trim();
                       }]);
 
                       try {
-                        let searchIds: number[] = [];
-                        if (topicId === -1 && subject) {
-                          try {
-                            const accessibleTopics = await getTopics(subject, level);
-                            if (Array.isArray(accessibleTopics)) {
-                              searchIds = accessibleTopics.map((t: any) => t.id);
-                            }
-                          } catch { searchIds = []; }
-                        } else {
-                          searchIds = [topicId];
+                        let searchIds: number[] = topicIds || [];
+                        // if (topicId === -1 && subject) {
+                        //   try {
+                        //     const accessibleTopics = await getTopics(subject, level);
+                        //     if (Array.isArray(accessibleTopics)) {
+                        //       searchIds = accessibleTopics.map((t: any) => t.id);
+                        //     }
+                        //   } catch { searchIds = []; }
+                        // } else {
+                        //   searchIds = [topicId];
+                        // }
+                        if (searchIds.length === 0) {
+                          if (topicId === -1 && subject) {
+                            try {
+                              const accessibleTopics = await getTopics(subject, level);
+                              if (Array.isArray(accessibleTopics)) {
+                                searchIds = accessibleTopics.map((t: any) => t.id);
+                              }
+                            } catch { searchIds = []; }
+                          } else if (topicId !== -1) {
+                            searchIds = [topicId];
+                          }
                         }
-                        const results = await searchResources(query, searchIds);
-                        const resultText = Array.isArray(results) && results.length > 0
-                          ? results.join('\n\n')
-                          : 'No relevant information found.';
+                        const resultText = await searchVoiceKnowledge(
+                          query,
+                          searchIds,
+                          subject || '',
+                          level || '',
+                        );
 
                         setVisualContexts(prev =>
                           prev.map(ctx => ctx.id === loadingId
@@ -367,7 +396,7 @@ ${safePrompt}${progressSummary}`.trim();
                         updateStatus('🔴 Live Conversation… Speak now!');
                         return { id: call.id, name: call.name, response: { output: resultText } };
                       } catch (err) {
-                        console.error('[Tool] consult_knowledge_base error:', err);
+                        console.error('[Tool] search_knowledge error:', err);
                         setVisualContexts(prev =>
                           prev.map(ctx => ctx.id === loadingId
                             ? { ...ctx, type: 'source_text' as const, content: 'Search failed.' }
@@ -546,7 +575,7 @@ ${safePrompt}${progressSummary}`.trim();
         },
 
         config: {
-          systemInstruction: buildSystemPrompt(prompt, lessonProgressRef.current),
+          systemInstruction: buildSystemPrompt(prompt, lessonProgressRef.current, preloadedContext),
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Orus' } },
@@ -555,12 +584,15 @@ ${safePrompt}${progressSummary}`.trim();
           tools: [{
             functionDeclarations: [
               {
-                name: 'consult_knowledge_base',
-                description: 'Search the topic-specific knowledge base for accurate curriculum-aligned information.',
+                name: 'search_knowledge',
+                description: 'Search the curriculum knowledge base AND official past exam papers simultaneously. Call this before explaining any fact, definition, formula, or concept. Also call when a student asks about a specific year or past paper question.',
                 parameters: {
                   type: Type.OBJECT,
                   properties: {
-                    query: { type: Type.STRING, description: 'The search query.' },
+                    query: {
+                      type: Type.STRING,
+                      description: 'The specific topic, concept, or question to search for. Be precise — e.g. "photosynthesis light reaction" not just "photosynthesis".',
+                    },
                   },
                   required: ['query'],
                 },
@@ -610,7 +642,8 @@ ${safePrompt}${progressSummary}`.trim();
     } catch (e: any) {
       updateError(`Connection failed: ${e.message}`);
     }
-  }, [prompt, stopConversation, buildSystemPrompt, topicId, subject, level, updateLessonProgress]);
+  }, [prompt, stopConversation, buildSystemPrompt, topicId, topicIds, subject, level, updateLessonProgress, preloadedContext]);
+
 
   // ─── Fix 3: Proactive session handoff at 8 minutes ────────────────────────
   useEffect(() => {
@@ -763,6 +796,7 @@ ${safePrompt}${progressSummary}`.trim();
       updateVolume();
 
       mediaRecorderRef.current.start();
+      onSessionStart?.();
       setIsRecording(true);
 
       // Fix 2: Increment session count on each start
@@ -1317,7 +1351,7 @@ ${safePrompt}${progressSummary}`.trim();
 //   // ─── Build system prompt ──────────────────────────────────────────────────
 //   // CRITICAL: The Gemini Live API hard-limits system instructions to ~8 000 tokens.
 //   // NEVER embed a full syllabus / document here — it causes instant 1011 server errors.
-//   // Large subject content must be retrieved on-demand via consult_knowledge_base.
+//   // Large subject content must be retrieved on-demand via search_knowledge.
 //   const buildSystemPrompt = useCallback((userPrompt: string) => {
 //     // Keep only the first 1 500 chars of the caller-supplied prompt.
 //     // That is enough to convey subject, level, and persona without exceeding
@@ -1325,14 +1359,14 @@ ${safePrompt}${progressSummary}`.trim();
 //     const PROMPT_CHAR_LIMIT = 1500;
 //     const safePrompt = userPrompt.length > PROMPT_CHAR_LIMIT
 //       ? userPrompt.slice(0, PROMPT_CHAR_LIMIT) +
-//         '\n[Full curriculum is available via the consult_knowledge_base tool.]'
+//         '\n[Full curriculum is available via the search_knowledge tool.]'
 //       : userPrompt;
 
 //     return `You are a Visual-First Private Tutor who uses Dual Coding (Visuals + Audio).
 
 // GOLDEN RULE: Always call a tool BEFORE speaking.
 // - Formulas / worked examples / bullet lists → call update_blackboard first, then speak.
-// - Subject facts / syllabus content / past-paper answers → call consult_knowledge_base first, then speak.
+// - Subject facts / syllabus content / past-paper answers → call search_knowledge first, then speak.
 // - On any "[SYSTEM COMMAND]" message → immediately call update_blackboard with the current topic summary.
 
 // AUDIO CUES: Begin sentences with "As I've written on the board…" or "As you can see on the screen…"
@@ -1413,8 +1447,8 @@ ${safePrompt}${progressSummary}`.trim();
 //                   toolCallData.functionCalls.map(async (call: any) => {
 //                     console.log(`[Tool] Handling: ${call.name} (id=${call.id})`);
 
-//                     // ── consult_knowledge_base ────────────────────────────
-//                     if (call.name === 'consult_knowledge_base') {
+//                     // ── search_knowledge ────────────────────────────
+//                     if (call.name === 'search_knowledge') {
 //                       const { query } = call.args as { query: string };
 //                       const loadingId = uuidv4();
 
@@ -1456,7 +1490,7 @@ ${safePrompt}${progressSummary}`.trim();
 //                         updateStatus('🔴 Live Conversation… Speak now!');
 //                         return { id: call.id, name: call.name, response: { output: resultText } };
 //                       } catch (err) {
-//                         console.error('[Tool] consult_knowledge_base error:', err);
+//                         console.error('[Tool] search_knowledge error:', err);
 //                         setVisualContexts(prev =>
 //                           prev.map(ctx =>
 //                             ctx.id === loadingId
@@ -1617,7 +1651,7 @@ ${safePrompt}${progressSummary}`.trim();
 //           tools: [{
 //             functionDeclarations: [
 //               {
-//                 name: 'consult_knowledge_base',
+//                 name: 'search_knowledge',
 //                 description: 'Search the topic-specific knowledge base (documents, flashcards, past papers) to retrieve accurate, curriculum-aligned information.',
 //                 parameters: {
 //                   type: Type.OBJECT,

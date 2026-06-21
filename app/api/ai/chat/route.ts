@@ -1,3 +1,4 @@
+//app\api\ai\chat\route.ts
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { searchOfficialPastPapers } from "@/app/(dashboard)/actions";
 import { NextResponse } from "next/server";

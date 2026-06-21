@@ -1,3 +1,4 @@
+//app\api\ai\generate\route.ts
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
@@ -190,10 +191,10 @@ export async function POST(req: Request) {
                 ${contextInstruction}
                 ${fileContextText}
 
-                Create ${count} practice questions for the topic "${topic}" similar to CXC past paper questions.
+                Create ${count} practice questions for the topic "${topic}".
                 Return ONLY a valid JSON array of objects.
-                Each object must have "year" (hypothetical or typical year), "question" (text), and "answer" (correct model answer).
-                Example format: [{"year": "2023", "question": "...", "answer": "..."}]
+                Each object must have "year" (hypothetical or typical year), "question" (text), and "answer" (correct model answer) and "explanation" (a detailed step-by-step reasoning or explanation of why the answer is correct).
+                Example format: [{"year": "2023", "question": "...", "answer": "...", "explanation": "..."}]
                 Do not include markdown formatting like \`\`\`json.
             `;
         } else {

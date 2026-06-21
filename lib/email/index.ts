@@ -5,7 +5,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 // The email address you want to send from.
 // NOTE: You must verify this domain in your Resend account.
-const fromEmail = 'onboarding@aurahsell.com';
+const fromEmail = 'EduCaribbeanAI_BMBEZ@educaribbean.ai';
 
 /**
  * Sends a team invitation email to a new member.
@@ -25,8 +25,8 @@ export const sendInvitationEmail = async (
       subject: `You're invited to join the ${teamName} team!`,
       html: `
         <h1>You're Invited!</h1>
-        <p>You have been invited to join the <strong>${teamName}</strong> team.</p>
-        <p>Click the link below to accept your invitation and create your account:</p>
+        <p>You have been invited to join the <strong>${teamName}</strong> on EduCaribbean.ai.</p>
+        <p>Click the link below to accept your invitation and create your EduCaribbean account:</p>
         <a href="${inviteUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
           Accept Invitation
         </a>
